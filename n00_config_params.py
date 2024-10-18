@@ -2,17 +2,7 @@
 import numpy as np
 import scipy.signal
 
-################################
-######## MODULES ########
-################################
 
-# anaconda (numpy, scipy, pandas, matplotlib, glob2, joblib, xlrd)
-# neurokit2 as nk
-# respirationtools
-# mne
-# neo
-# bycycle
-# pingouin
 
 ################################
 ######## GENERAL PARAMS ######## 
@@ -23,92 +13,63 @@ teleworking = False
 enable_big_execute = False
 perso_repo_computation = False
 
-#sujet = 'DEBUG'
+srate_g = 500
 
-conditions = ['FR_CV_1', 'MECA', 'CO2', 'FR_CV_2']
+project_name_list_raw = ['COVEM_ITL', 'NORMATIVE', 'PHYSIOLOGY', 'SLP', 'ITL_LEO']
+project_name_list = ['NORMATIVE', 'PHYSIOLOGY', 'ITL_LEO']
 
-sujet_list =                    np.array(['01PD','03VN','05LV','06EF','07PB','08DM','09TA','10BH',
-                            '11FA','12BD','13FP','14MD','15LG','16GM','17JR','19TM','20TY','21ZV',
-                            '23LF','24TJ','26MN','28NT','29SC','30AR','31HJ','32CM','33MA'])
+sujet_list_project_wise = {'COVEM_ITL': ['01NM', '02HM', '03DG', '04DM', '05DR', '06DJ', '07DC', '08AP', '09SL', '10LL', '11VR', '12LC', '13NN', '14MA', '15LY', '16BA', '17CM', '18EA', '19LT'],
+                      'NORMATIVE' : ['MW02', 'OL04', 'MC05', 'VS06', 'LS07', 'JS08', 'HC09', 'YB10','ML11', 'CM12', 'CV13', 'VA14', 'LC15', 'PS16', 'SL18', 'JP19', 'LD20'], 
+                      'PHYSIOLOGY' : ['JS08',  'LP26',  'MN23',  'SB27',  'TH24',  'VA14',  'VS06'], 
+                      'SLP' : ['AB33', 'BK35', 'CD28', 'ES32', 'JC30', 'MM34', 'SG29', 'ZM31'],
+                      'ITL_LEO' : ['01NM', '02HM', '03DG', '04DM', '05DR', '06DJ', '07DC', '08AP', '09SL', '10LL', '11VR', '12LC', '13NN', '14MA', '15LY', '16BA', '17CM', '18EA', '19LT']}
 
-sujet_list_rev =                np.array(['PD01','VN03','LV05','EF06','PB07','DM08','TA09','BH10',
-                            'FA11','BD12','FP13','MD14','LG15','GM16','JR17','TM19','TY20','ZV21',
-                            'LF23','TJ24','MN26','NT28','SC29','AR30','HJ31','CM32','MA33'])
+sujet_list = ['01NM_MW', '02NM_OL', '03NM_MC', '04NM_VS', '05NM_LS', '06NM_JS', '07NM_HC', '08NM_YB','09NM_ML', '10NM_CM', '11NM_CV', '12NM_VA', '13NM_LC', '14NM_PS', '15NM_SL', '16NM_JP', '17NM_LD',
+              '18PH_JS',  '19PH_LP',  '20PH_MN',  '21PH_SB',  '22PH_TH',  '23PH_VA',  '24PH_VS',
+              '25IL_NM', '26IL_HM', '27IL_DG', '28IL_DM', '29IL_DR', '30IL_DJ', '31IL_DC', '32IL_AP', '33IL_SL', '34IL_LL', '35IL_VR', '36IL_LC', '37IL_NN', '38IL_MA', '39IL_LY', '40IL_BA', '41IL_CM', '42IL_EA', '43IL_LT']
 
-# ['02MJ', '18SE', '22DI', '27BD'] signal problems
-# ['04GB', '25DF'] dypnea induction failed
+cond_list = ['VS', 'CHARGE']
 
-sujet_best_list =               np.array(['BD12','CM32','FA11','GM16','HJ31','JR17','MA33','MN26',
-                            'PD01','SC29','TA09','TJ24','TM19','VN03','ZV21'])
-sujet_best_list_rev =           np.array(['12BD','32CM','11FA','16GM','31HJ','17JR','33MA','26MN',
-                            '01PD','29SC','09TA','24TJ','19TM','03VN','21ZV'])
+sujet_project_nomenclature = {'NM' : 'NORMATIVE', 'PH' : 'PHYSIOLOGY', 'IL' : 'ITL_LEO'}
 
-sujet_no_respond =              np.array(['LV05','EF06','PB07','DM08','BH10','FP13','MD14','LG15',
-                            'TY20','LF23','NT28','AR30'])
-sujet_no_respond_rev =          np.array(['05LV','06EF','07PB','08DM','10BH','13FP','14MD','15LG',
-                            '20TY','23LF','28NT','30AR'])
+sujet_list_correspondance = {'MW02' : '01NM_MW', 'OL04' : '02NM_OL', 'MC05' : '03NM_MC', 'VS06' : '04NM_VS', 'LS07' : '05NM_LS', 'JS08' : '06NM_JS', 'HC09' : '07NM_HC', 
+                             'YB10' : '08NM_YB', 'ML11' : '09NM_ML', 'CM12' : '10NM_CM', 'CV13' : '11NM_CV', 'VA14' : '12NM_VA', 'LC15' : '13NM_LC', 'PS16' : '14NM_PS', 
+                             'SL18' : '15NM_SL', 'JP19' : '16NM_JP', 'LD20' : '17NM_LD', 'JS08' : '18PH_JS', 'LP26' : '19PH_LP', 'MN23' : '20PH_MN', 'SB27' : '21PH_SB',
+                             'TH24' : '22PH_TH', 'VA14' : '23PH_VA', 'VS06' : '24PH_VS', '01NM' : '25IL_NM', '02HM' : '26IL_HM', '03DG' : '27IL_DG', '04DM' : '28IL_DM', 
+                             '05DR' : '29IL_DR', '06DJ' : '30IL_DJ', '07DC' : '31IL_DC', '08AP' : '32IL_AP', '09SL' : '33IL_SL', '10LL' : '34IL_LL', '11VR' : '35IL_VR', 
+                             '12LC' : '36IL_LC', '13NN' : '37IL_NN', '14MA' : '38IL_MA', '15LY' : '39IL_LY', '16BA' : '40IL_BA', '17CM' : '41IL_CM', '18EA' : '42IL_EA', 
+                             '19LT' : '43IL_LT'}
 
-
-sujet_list_hyperventilation = ['20TY']
-
-band_prep_list = ['wb']
-
-freq_band_dict = {'wb' : {'theta' : [2,10], 'alpha' : [8,14], 'beta' : [10,40], 'l_gamma' : [50, 80], 'h_gamma' : [80, 120], 'whole' : [2,50]},
-                'lf' : {'theta' : [2,10], 'alpha' : [8,14], 'beta' : [10,40], 'whole' : [2,50]},
-                'hf' : {'l_gamma' : [50, 80], 'h_gamma' : [80, 120]} }
-
-freq_band_list_precompute = {'wb' : {'theta_1' : [2,10], 'theta_2' : [4,8], 'alpha_1' : [8,12], 'alpha_2' : [8,14], 
-                                    'beta_1' : [12,40], 'beta_2' : [10,40], 'whole_1' : [2,50], 'l_gamma_1' : [50, 80], 
-                                    'h_gamma_1' : [80, 120]} }
-
-freq_band_dict_FC = {'wb' : {'theta' : [4,8], 'alpha' : [8,12], 'beta' : [12,40], 'l_gamma' : [50, 80], 'h_gamma' : [80, 120]},
-                'lf' : {'theta' : [4,8], 'alpha' : [8,12], 'beta' : [12,40]},
-                'hf' : {'l_gamma' : [50, 80], 'h_gamma' : [80, 120]} }
-
-odor_list = ['o', '+', '-']
-
-phase_list = ['whole', 'inspi', 'expi']
-
-srate = 500
-
-chan_list = ['Fp1', 'Fz', 'F3', 'F7', 'FT9', 'FC5', 'FC1', 'C3', 'T7', 'TP9', 'CP5', 'CP1', 'Pz', 'P3', 'P7', 'O1', 
-            'Oz', 'O2', 'P4', 'P8', 'TP10', 'CP6', 'CP2', 'Cz', 'C4', 'T8', 'FT10', 'FC6', 'FC2', 'F4', 'F8', 'Fp2', 
-            'PRESS', 'ECG', 'ECG_cR']
-            
-chan_list_eeg = ['Fp1', 'Fz', 'F3', 'F7', 'FT9', 'FC5', 'FC1', 'C3', 'T7', 'TP9', 'CP5', 'CP1', 'Pz', 'P3', 'P7', 'O1', 
-            'Oz', 'O2', 'P4', 'P8', 'TP10', 'CP6', 'CP2', 'Cz', 'C4', 'T8', 'FT10', 'FC6', 'FC2', 'F4', 'F8', 'Fp2']
-
-chan_list_eeg_fc = ['Fp1', 'Fp2', 'F3', 'F4', 'F7', 'F8','Fz', 'FC1', 'FC2', 'FC5', 'FC6', 'FT9', 'FT10', 'Cz', 'C3', 'C4',
-                    'CP1', 'CP2', 'CP5', 'CP6', 'Pz', 'P3', 'P4', 'P7', 'P8', 'T7', 'T8', 'TP9', 'TP10', 'Oz', 'O1', 'O2']
-
-chan_list_lobes = {'all' : chan_list_eeg,
-                    'frontal' : ['Fp1', 'Fz', 'F3', 'F7', 'F4', 'F8', 'Fp2', 'FC5', 'FC1', 'FC6', 'FC2'], 
-                   'parietal': ['C3', 'CP5', 'CP1', 'Pz', 'P3', 'P7', 'P4', 'P8', 'CP6', 'CP2', 'Cz', 'C4'],
-                   'temporal' : ['FT9', 'T7', 'TP9', 'TP10', 'T8', 'FT10'],
-                   'occipital' : ['O1', 'Oz', 'O2']}
+chan_list_project_wise = {'COVEM_ITL': ['FC1', 'FC2', 'Cz', 'C2', 'CP1', 'CP2', 'EMG'],
+                      'NORMATIVE' : ['FP1', 'F7', 'F3', 'Fz', 'FC5', 'FC1', 'A1', 'T7', 'C3', 'Cz', 'TP9', 'CP5', 'CP1', 'P7', 'P3', 'Pz', 'FP2', 'F4', 'F8', 'FC2', 'FC6', 'C4', 'T8', 'A2', 'CP2', 'CP6', 'TP10', 'P4', 'P8', 'O1', 'Oz', 'O2', 'Debit', 'Pression', 'EMG PS', 'ECG', 'FCz'], 
+                      'PHYSIOLOGY' : ['EOG', 'Fp2', 'F7', 'F3', 'Fz', 'F4', 'F8', 'FC5', 'FC1', 'FC2', 'FC6', 'T7', 'C3', 'Cz', 'C4', 'T8', 'TP9', 'CP5', 'CP1', 'CP2', 'CP6', 'TP10', 'P7', 'P3', 'Pz', 'P4', 'P8', 'PO9', 'O1', 'Oz', 'O2', 'FCz', 'AF7', 'AF3', 'AF4', 'AF8', 'F5', 'F1', 'F2', 'F6', 'FT9', 'FT7', 'FC3', 'FC4', 'FT8', 'FT10', 'C5', 'C1', 'C2', 'C6', 'TP7', 'CP3', 'CPz', 'CP4', 'TP8', 'P5', 'P1', 'P2', 'P6', 'PO7', 'PO3', 'POz', 'PO4', 'PO8', 'Debit', 'Pression', 'PS', 'ECG'], 
+                      'SLP' : ['Fp1', 'Fp2', 'F7', 'F3', 'Fz', 'F4', 'F8', 'FC5', 'FC1', 'FC2', 'FC6', 'T7', 'C3', 'Cz', 'C4', 'T8', 'TP9', 'CP5', 'CP1', 'CP2', 'CP6', 'TP10', 'P7', 'P3', 'Pz', 'P4', 'P8', 'PO9', 'O1', 'Oz', 'O2', 'FCz', 'AF7', 'AF3', 'AF4', 'AF8', 'F5', 'F1', 'F2', 'F6', 'FT9', 'FT7', 'FC3', 'FC4', 'FT8', 'FT10', 'C5', 'C1', 'C2', 'C6', 'TP7', 'CP3', 'CPz', 'CP4', 'TP8', 'P5', 'P1', 'P2', 'P6', 'PO7', 'PO3', 'POz', 'PO4', 'PO8', 'ECG', 'ScalEMG'],
+                      'ITL_LEO' : ['Fp1', 'Fp2', 'F7', 'F3', 'Fz', 'F4', 'F8', 'FC5', 'FC1', 'FC2', 'FC6', 'T7', 'C3', 'Cz', 'C4', 'T8', 'A1', 'CP5', 'CP1', 'CP2', 'CP6', 'A2', 'P7', 'P3', 'Pz', 'P4', 'P8', 'O1', 'Oz', 'O2', 'EOG', 'EMG', 'PRESSION']}
 
 
 
-################################
-######## ODOR ORDER ########
-################################
+#### NOTES ####
+# In PHYSIOLOGY sujet ['MC05', 'OL04'] have been excluded because they cant load
 
-odor_order = {
+condition_list_project_wise = {'COVEM_ITL': ['CHARGE'],
+                      'NORMATIVE' : ['CHARGE', 'PETITE CHARGE', 'ARTIFACT', 'SNIFS', 'VS', 'VS2'], 
+                      'PHYSIOLOGY' : ['CHARGE'], 
+                      'SLP' : ['CHARGE'],
+                       'ITL_LEO' : ['VS', 'CO2', 'ITL']}
 
-'01PD' : {'ses02' : 'o', 'ses03' : '+', 'ses04' : '-'},   '02MJ' : {'ses02' : '-', 'ses03' : 'o', 'ses04' : '+'},   '03VN' : {'ses02' : 'o', 'ses03' : '-', 'ses04' : '+'},   
-'04GB' : {'ses02' : 'o', 'ses03' : '-', 'ses04' : '+'},   '05LV' : {'ses02' : 'o', 'ses03' : '-', 'ses04' : '+'},   '06EF' : {'ses02' : '-', 'ses03' : 'o', 'ses04' : '+'},   
-'07PB' : {'ses02' : 'o', 'ses03' : '+', 'ses04' : '-'},   '08DM' : {'ses02' : '+', 'ses03' : 'o', 'ses04' : '-'},   '09TA' : {'ses02' : '-', 'ses03' : '+', 'ses04' : 'o'},   
-'10BH' : {'ses02' : '-', 'ses03' : '+', 'ses04' : 'o'},   '11FA' : {'ses02' : 'o', 'ses03' : '+', 'ses04' : '-'},   '12BD' : {'ses02' : '-', 'ses03' : 'o', 'ses04' : '+'},   
-'13FP' : {'ses02' : '-', 'ses03' : '+', 'ses04' : 'o'},   '14MD' : {'ses02' : '-', 'ses03' : '+', 'ses04' : 'o'},   '15LG' : {'ses02' : '+', 'ses03' : 'o', 'ses04' : '-'},
-'16GM' : {'ses02' : 'o', 'ses03' : '-', 'ses04' : '+'},   '17JR' : {'ses02' : '-', 'ses03' : '+', 'ses04' : 'o'},   '18SE' : {'ses02' : '-', 'ses03' : '+', 'ses04' : 'o'},   
-'19TM' : {'ses02' : 'o', 'ses03' : '-', 'ses04' : '+'},   '20TY' : {'ses02' : '+', 'ses03' : 'o', 'ses04' : '-'},   '21ZV' : {'ses02' : 'o', 'ses03' : '+', 'ses04' : '-'},   
-'22DI' : {'ses02' : '-', 'ses03' : '+', 'ses04' : 'o'},   '23LF' : {'ses02' : '+', 'ses03' : '-', 'ses04' : 'o'},   '24TJ' : {'ses02' : '-', 'ses03' : '+', 'ses04' : 'o'},   
-'25DF' : {'ses02' : 'o', 'ses03' : '-', 'ses04' : '+'},   '26MN' : {'ses02' : '-', 'ses03' : 'o', 'ses04' : '+'},   '27BD' : {'ses02' : '-', 'ses03' : 'o', 'ses04' : '+'},   
-'28NT' : {'ses02' : '+', 'ses03' : 'o', 'ses04' : '-'},   '29SC' : {'ses02' : 'o', 'ses03' : '-', 'ses04' : '+'},   '30AR' : {'ses02' : '+', 'ses03' : 'o', 'ses04' : '-'},
-'31HJ' : {'ses02' : '-', 'ses03' : 'o', 'ses04' : '+'},   '32CM' : {'ses02' : '-', 'ses03' : 'o', 'ses04' : '+'},   '33MA' : {'ses02' : '-', 'ses03' : 'o', 'ses04' : '+'}
-}
+params_extraction_data = {'COVEM_ITL' : {'time_cutoff' : 13},
+                      'NORMATIVE' : { 'time_cutoff' : {'CHARGE' : 0, 'SNIFS' : 0, 'VS' : 0}},
+                      'PHYSIOLOGY' : {'time_cutoff' : 0},
+                      'SLP' : {'time_cutoff' : 0},
+                       'ITL_LEO' : {'time_cutoff' : 0}}
 
-
+physiology_trig = {'JS08' : {'trig' : ['VS', 'CHARGE'], 'start' : [0, 323500], 'stop' : [300000, 642000]},
+                   'LP26' : {'trig' : ['VS', 'CHARGE'], 'start' : [0, 350000], 'stop' : [300000, 668000]},
+                   'MN23' : {'trig' : ['VS', 'CHARGE'], 'start' : [0, 330000], 'stop' : [300000, 663000]},
+                   'SB27' : {'trig' : ['VS', 'CHARGE'], 'start' : [0, 342000], 'stop' : [300000, 650000]},
+                   'TH24' : {'trig' : ['VS', 'CHARGE'], 'start' : [0, 330000], 'stop' : [300000, 633000]},
+                   'VA14' : {'trig' : ['VS', 'CHARGE'], 'start' : [0, 316000], 'stop' : [310000, 627000]},
+                   'VS06' : {'trig' : ['VS', 'CHARGE'], 'start' : [0, 362000], 'stop' : [310000, 670000]}}
 
 
 ########################################
@@ -130,9 +91,9 @@ if PC_ID == 'LAPTOP-EI7OSP7K':
         if perso_repo_computation:
             path_main_workdir = '/home/jules/Bureau/perso_repo_computation/Script_Python_EEG_Paris_git'
         else:    
-            path_main_workdir = 'Z:\\Projets\\Olfadys\\NBuonviso2022_jules_olfadys\\EEG_Paris_J\\Script_Python_EEG_Paris_git'
-        path_general = 'Z:\\Projets\\Olfadys\\NBuonviso2022_jules_olfadys\\EEG_Paris_J'
-        path_memmap = 'Z:\\Projets\\Olfadys\\NBuonviso2022_jules_olfadys\\EEG_Paris_J\\Mmap'
+            path_main_workdir = 'Z:\\Projets\\PPI_Jules\\Scripts'
+        path_general = 'Z:\\Projets\\PPI_Jules'
+        path_memmap = 'Z:\\Projets\\PPI_Jules\\Mmap'
         n_core = 4
 
     else:
@@ -141,9 +102,9 @@ if PC_ID == 'LAPTOP-EI7OSP7K':
         if perso_repo_computation:
             path_main_workdir = '/home/jules/Bureau/perso_repo_computation/Script_Python_EEG_Paris_git'
         else:    
-            path_main_workdir = 'N:\\cmo\Projets\\Olfadys\\NBuonviso2022_jules_olfadys\\EEG_Paris_J\\Script_Python_EEG_Paris_git'
-        path_general = 'N:\\cmo\\Projets\\Olfadys\\NBuonviso2022_jules_olfadys\\EEG_Paris_J'
-        path_memmap = 'N:\\cmo\\Projets\\Olfadys\\NBuonviso2022_jules_olfadys\\EEG_Paris_J\\Mmap'
+            path_main_workdir = 'N:\\cmo\Projets\\PPI_Jules\\Scripts'
+        path_general = 'N:\\cmo\\Projets\\PPI_Jules'
+        path_memmap = 'N:\\cmo\\Projets\\PPI_Jules\\Mmap'
         n_core = 4
 
     
@@ -163,11 +124,11 @@ elif PC_ID == 'pc-jules' or PC_ID == 'LAPTOP-EI7OSP7K':
 
     PC_working = 'Jules_Labo_Linux'
     if perso_repo_computation:
-        path_main_workdir = '/home/jules/Bureau/perso_repo_computation/Script_Python_EEG_Paris_git'
+        path_main_workdir = '/home/jules/Bureau/perso_repo_computation/Scripts'
     else:    
-        path_main_workdir = '/home/jules/smb4k/CRNLDATA/crnldata/cmo/Projets/Olfadys/NBuonviso2022_jules_olfadys/EEG_Paris_J/Script_Python_EEG_Paris_git'
-    path_general = '/home/jules/smb4k/CRNLDATA/crnldata/cmo/Projets/Olfadys/NBuonviso2022_jules_olfadys/EEG_Paris_J'
-    path_memmap = '/home/jules/smb4k/CRNLDATA/crnldata/cmo/Projets/Olfadys/NBuonviso2022_jules_olfadys/EEG_Paris_J/Mmap'
+        path_main_workdir = '/home/jules/smb4k/CRNLDATA/crnldata/cmo/Projets/PPI_Jules/Scripts'
+    path_general = '/home/jules/smb4k/CRNLDATA/crnldata/cmo/Projets/PPI_Jules'
+    path_memmap = '/home/jules/smb4k/CRNLDATA/crnldata/cmo/Projets/PPI_Jules/Mmap'
     n_core = 4
 
 elif PC_ID == 'pc-valentin':
@@ -192,8 +153,8 @@ elif PC_ID == 'nodeGPU':
 else:
 
     PC_working = 'crnl_cluster'
-    path_main_workdir = '/crnldata/cmo/Projets/Olfadys/NBuonviso2022_jules_olfadys/EEG_Paris_J/Script_Python_EEG_Paris_git'
-    path_general = '/crnldata/cmo/Projets/Olfadys/NBuonviso2022_jules_olfadys/EEG_Paris_J'
+    path_main_workdir = '/crnldata/cmo/Projets/PPI_Jules/Scripts'
+    path_general = '/crnldata/cmo/Projets/PPI_Jules'
     path_memmap = '/mnt/data/julesgranget'
     n_core = 10
     
@@ -202,8 +163,6 @@ path_data = os.path.join(path_general, 'Data')
 path_prep = os.path.join(path_general, 'Analyses', 'preprocessing')
 path_precompute = os.path.join(path_general, 'Analyses', 'precompute') 
 path_results = os.path.join(path_general, 'Analyses', 'results') 
-path_respfeatures = os.path.join(path_general, 'Analyses', 'results') 
-path_anatomy = os.path.join(path_general, 'Analyses', 'anatomy')
 path_slurm = os.path.join(path_general, 'Script_slurm')
 
 #### slurm params
@@ -388,7 +347,7 @@ nfrex = 150
 ncycle_list = [7, 41]
 freq_list = [2, 150]
 srate_dw = 10
-wavetime = np.arange(-3,3,1/srate)
+wavetime = np.arange(-3,3,1/srate_g)
 frex = np.logspace(np.log10(freq_list[0]), np.log10(freq_list[1]), nfrex) 
 cycles = np.logspace(np.log10(ncycle_list[0]), np.log10(ncycle_list[1]), nfrex).astype('int')
 Pxx_wavelet_norm = 1000
@@ -472,28 +431,6 @@ nfft_hrv = nwind_hrv
 noverlap_hrv = np.round(nwind_hrv/10)
 win_hrv = scipy.signal.windows.hann(nwind_hrv)
 f_RRI = (.1, .5)
-
-
-
-
-################################
-######## HRV TRACKER ########
-################################
-
-cond_label_tracker = {'FR_CV_1' : 1, 'MECA' : 2, 'CO2' : 3, 'FR_CV_2' : 1}
-
-
-prms_tracker = {
-'metric_list' : ['HRV_MeanNN', 'HRV_SDNN', 'HRV_RMSSD', 'HRV_pNN50', 'HRV_SD1', 'HRV_SD2', 'HRV_COV'],
-'win_size_sec' : 30,
-'odor_trig_n_bpm' : 75,
-'jitter' : 0,
-'srate' : srate
-}
-
-points_per_cond = 1000
-trim_between = 100 #sec
-
 
 
 

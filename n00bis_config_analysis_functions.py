@@ -180,85 +180,20 @@ def generate_folder_structure(sujet):
     os.chdir(os.path.join(path_general, 'Analyses'))
     construct_token = create_folder('preprocessing', construct_token)
     construct_token = create_folder('precompute', construct_token)
-    construct_token = create_folder('anatomy', construct_token)
     construct_token = create_folder('results', construct_token)
     construct_token = create_folder('protocole', construct_token)
     
         #### preprocessing
     os.chdir(os.path.join(path_general, 'Analyses', 'preprocessing'))
-    construct_token = create_folder(sujet, construct_token)
-    os.chdir(os.path.join(path_general, 'Analyses', 'preprocessing', sujet))
-    construct_token = create_folder('sections', construct_token)
-    construct_token = create_folder('info', construct_token)
 
         #### precompute
     os.chdir(os.path.join(path_general, 'Analyses', 'precompute'))
     construct_token = create_folder(sujet, construct_token)
     construct_token = create_folder('allsujet', construct_token)
 
-            #### allsujet
-    os.chdir(os.path.join(path_general, 'Analyses', 'precompute', 'allsujet'))
-    construct_token = create_folder('HRV', construct_token)
-    construct_token = create_folder('TF', construct_token)
-    construct_token = create_folder('PSD_Coh', construct_token)
-
-            #### sujet
-    os.chdir(os.path.join(path_general, 'Analyses', 'precompute', sujet))
-    construct_token = create_folder('ITPC', construct_token)
-    construct_token = create_folder('TF', construct_token)
-    construct_token = create_folder('PSD_Coh', construct_token)
-    construct_token = create_folder('baselines', construct_token)
-    construct_token = create_folder('FC', construct_token)
-    construct_token = create_folder('HRV', construct_token)
-
-        #### anatomy
-    os.chdir(os.path.join(path_general, 'Analyses', 'anatomy'))
-    construct_token = create_folder(sujet, construct_token)
-
         #### results
     os.chdir(os.path.join(path_general, 'Analyses', 'results'))
     construct_token = create_folder(sujet, construct_token)
-    construct_token = create_folder('allplot', construct_token)
-    os.chdir(os.path.join(path_general, 'Analyses', 'results', sujet))
-    construct_token = create_folder('PSYCHO', construct_token)
-    construct_token = create_folder('RESPI', construct_token)
-    construct_token = create_folder('TF', construct_token)
-    construct_token = create_folder('PSD_Coh', construct_token)
-    construct_token = create_folder('ITPC', construct_token)
-    construct_token = create_folder('FC', construct_token)
-    construct_token = create_folder('HRV', construct_token)
-    construct_token = create_folder('df', construct_token)
-    construct_token = create_folder('ERP', construct_token)
-
-            #### ERP
-    os.chdir(os.path.join(path_general, 'Analyses', 'results', sujet, 'TF'))
-    construct_token = create_folder('summary', construct_token)
-    construct_token = create_folder('topoplot', construct_token)
-
-            #### TF
-    os.chdir(os.path.join(path_general, 'Analyses', 'results', sujet, 'TF'))
-    construct_token = create_folder('summary', construct_token)
-    construct_token = create_folder('allcond', construct_token)
-
-            #### PSD_Coh
-    os.chdir(os.path.join(path_general, 'Analyses', 'results', sujet, 'PSD_Coh'))
-    construct_token = create_folder('summary', construct_token)
-    construct_token = create_folder('allcond', construct_token)
-    construct_token = create_folder('topoplot', construct_token) 
-
-            #### ITPC
-    os.chdir(os.path.join(path_general, 'Analyses', 'results', sujet, 'ITPC'))
-    construct_token = create_folder('summary', construct_token)
-    construct_token = create_folder('allcond', construct_token)
-    construct_token = create_folder('topoplot', construct_token)
-
-        #### allplot
-    os.chdir(os.path.join(path_general, 'Analyses', 'results', 'allplot'))
-    construct_token = create_folder('df', construct_token)
-    construct_token = create_folder('TF', construct_token)
-    construct_token = create_folder('ITPC', construct_token)
-    construct_token = create_folder('FC', construct_token)
-    construct_token = create_folder('PSD_Coh', construct_token)
 
     return construct_token
 

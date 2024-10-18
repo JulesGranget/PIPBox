@@ -12,7 +12,6 @@ import seaborn as sns
 
 from n00_config_params import *
 from n00bis_config_analysis_functions import *
-from n1bis_prep_info import *
 
 debug = False
 
@@ -20,123 +19,97 @@ debug = False
 
 
 
+
 ################################
-######## LOAD DATA ########
+######## OPEN DATA ########
 ################################
 
-#sujet, session_i = 'PD01', 1
-def open_raw_data_session(sujet, session_i):
+#sujet, cond = sujet_list[21], 'VS'
+def open_raw_data(sujet, cond):
 
-    #### open raw and adjust for sujet
-    os.chdir(os.path.join(path_data, 'eeg'))
+    ######## identify project and sujet ########        
+    sujet_project = sujet_project_nomenclature[sujet[2:4]]
+    sujet_init_name = list(sujet_list_correspondance.keys())[list(sujet_list_correspondance.values()).index(sujet)]
 
-    sujet_eeg_open = sujet[-2:] + sujet[:-2]
+    ######## OPEN DATA ########
+    if sujet_project == 'NORMATIVE':
 
-    if sujet_eeg_open == 'NT28' and session_i == 0:
+        os.chdir(os.path.join(path_data, sujet_project, 'first', sujet_init_name))
 
-        raw = mne.io.read_raw_brainvision(f'{sujet_eeg_open}_ses0{session_i+2}.vhdr', preload=True)
-        raw_2 = mne.io.read_raw_brainvision(f'{sujet_eeg_open}_ses0{session_i+2}_2.vhdr', preload=True)
+        print(f"OPEN {sujet_project} : {sujet}")
 
-        raw = mne.concatenate_raws([raw, raw_2])
+        _data = mne.io.read_raw_brainvision(f"{sujet_init_name}_{cond}_ValidICM.vhdr")
+        _chan_list_eeg = _data.info['ch_names'][:-5]
+        _data_eeg = _data.get_data()[:-5,:]
+        pression_chan_i = _data.info['ch_names'].index('Pression')
+        _respi = _data.get_data()[pression_chan_i,:]
+        _srate_init = _data.info['sfreq']
 
-    elif sujet_eeg_open == 'AR30' and session_i == 2:
+        if debug:
+            mne.viz.plot_raw(_data, n_channels=1)
 
-        raw = mne.io.read_raw_brainvision(f'{sujet_eeg_open}_ses0{session_i+2}.vhdr', preload=True)
-        srate = int(raw.info['sfreq'])
-        raw.crop(tmin=1076000/srate, tmax=None)
+    elif sujet_project == 'PHYSIOLOGY':
 
-    else:
+        os.chdir(os.path.join(path_data, sujet_project, sujet_init_name))
 
-        raw = mne.io.read_raw_brainvision(f'{sujet_eeg_open}_ses0{session_i+2}.vhdr', preload=True)
+        print(f"OPEN {sujet_project} : {sujet}")
 
-    srate = int(raw.info['sfreq'])
+        _data = mne.io.read_raw_brainvision(f"{sujet_init_name}_CONTINU_64Ch_A2Ref.vhdr")
+        if sujet == '21PH_SB':
+            _chan_list_eeg = _data.info['ch_names'][:-4]
+            _data_eeg = _data.get_data()[:-4,:]
+        else:
+            _chan_list_eeg = _data.info['ch_names'][1:-4]
+            _data_eeg = _data.get_data()[1:-4,:]
+        pression_chan_i = _data.info['ch_names'].index('Pression')
+        _respi = _data.get_data()[pression_chan_i,:]
+        _srate_init = _data.info['sfreq']
 
-    if srate != 500:
-        raise ValueError(f'#### WARNING : {sujet_eeg_open} srate != 500 ####')
+        if debug:
+            mne.viz.plot_raw(_data, n_channels=1)
 
-    #### Data vizualisation
-    if debug == True :
-        duration = 4.
-        n_chan = 20
-        raw.plot(scalings='auto',duration=duration,n_channels=n_chan)# verify
+    elif sujet_project == 'ITL_LEO':
 
-    #raw.info['ch_names'] # verify
+        os.chdir(os.path.join(path_data, 'ITL_LEO'))
 
-    #### identify EOG and rename chans
-    # raw[raw.info['ch_names'].index('36'), :] = raw.get_data()[raw.info['ch_names'].index('Fp1'), :]
-    # mne.rename_channels(raw.info, {'36' : 'VEOG'})
+        print(f"OPEN {sujet_project} : {sujet}")
 
-    if debug:
-        data_plot = raw[raw.info['ch_names'].index('Fp1'), :][0][0,:int(1e10)]
-        plt.plot(data_plot)
-        plt.show()
-    
-    #### select raw_eeg
-    raw_eeg = raw.copy()
-    drop_chan = ['PRESS','ECG','TRIG']
-    raw_eeg.info['ch_names']
-    raw_eeg.drop_channels(drop_chan)
+        file_name = [file for file in os.listdir() if file.find(sujet_init_name) != -1 and file.find(f'{cond}.edf') != -1][0]
+        file_name_marker = [file for file in os.listdir() if file.find(sujet_init_name) != -1 and file.find(f'{cond}.Markers') != -1][0]
 
-    #### select aux chan
-    raw_aux = raw.copy()
-    select_chan = ['PRESS','ECG','TRIG']
-    raw_aux = raw_aux.pick_channels(select_chan)
+        _data = mne.io.read_raw_edf(file_name)
+        _chan_list_eeg = _data.info['ch_names'][:-3]
+        _data_eeg = _data.get_data()[:-3,:]
+        pression_chan_i = _data.info['ch_names'].index('PRESSION')
+        _respi = _data.get_data()[pression_chan_i,:]
+        _srate_init = _data.info['sfreq']
 
-    if debug:
-        plt.plot(zscore(raw_aux.get_data()[0,:]), label='PRESS')
-        plt.plot(zscore(raw_aux.get_data()[1,:]), label='ECG')
-        plt.plot(zscore(raw_aux.get_data()[2,:]), label='TRIG')
-        plt.legend()
-        plt.show()
+    ######## RESAMPLE ########
+    if _srate_init != 500:
 
-    #### extract trig
-    trig_sig = raw_aux.get_data()[-1,:]*-1
-    peaks = scipy.signal.find_peaks(trig_sig, height=trig_sig.max()/2, distance=srate*60)[0]
+        #### EEG
+        _time_vec_origin = np.arange(0, _data_eeg.shape[-1]/_srate_init, 1/_srate_init)
+        _time_vec_dwsampled = np.arange(0, _data_eeg.shape[-1]/_srate_init, 1/srate_g)
 
-    if debug:
-        respi = raw_aux.get_data()[0,:]
-        plt.plot(respi)
-        plt.vlines(peaks, ymin=respi.min(), ymax=respi.max(), color='r')
-        plt.show()
+        _data_dwsampled = np.zeros((len(_chan_list_eeg), _time_vec_dwsampled.shape[0]))
 
-        #### tag block ending
-        trig_list = [1,3,5,7]
-        peaks[trig_list]
+        for chan_i in range(_data_eeg.shape[0]):
+            x = _data_eeg[chan_i,:]
+            x_dwsampled = np.interp(_time_vec_dwsampled, _time_vec_origin, x)
+            _data_dwsampled[chan_i,:] = x_dwsampled
 
-        plt.plot(respi)
-        plt.vlines(peaks[trig_list], ymin=respi.min(), ymax=respi.max(), color='r')
-        plt.show()
+        _data_eeg = _data_dwsampled
 
-    #### generate trig
-    trig = {}
-    #cond = conditions[0]
-    for cond in conditions:
-        
-        _stop = dict_trig_sujet[sujet][f'ses0{session_i+2}'][cond]
-        _start = _stop - (srate*5*60)
-        trig[cond] = np.array([_start, _stop])
+        #### AUX
+        _respi = np.interp(_time_vec_dwsampled, _time_vec_origin, _respi)
 
-    if debug:
-
-        for cond in conditions:
-
-            respi = raw_aux.get_data()[0,:]
-            plt.plot(respi)
-            plt.vlines([trig[cond][0], trig[cond][1]], ymin=respi.min(), ymax=respi.max(), color='r')
-            plt.title(cond)
-            plt.show()
-
-    #### remove trig
-    raw_aux.drop_channels(['TRIG'])
-
-    #raw_eeg.info # verify
-    #raw_aux.info # verify
-    
-    del raw
-
-    return raw_eeg, raw_aux, trig, srate
+    ######## ADJUST CHAN LIST ########
+                      'NORMATIVE' : ['FP1', 'F7', 'F3', 'Fz', 'FC5', 'FC1', 'A1', 'T7', 'C3', 'Cz', 'TP9', 'CP5', 'CP1', 'P7', 'P3', 'Pz', 'FP2', 'F4', 'F8', 'FC2', 'FC6', 'C4', 'T8', 'A2', 'CP2', 'CP6', 'TP10', 'P4', 'P8', 'O1', 'Oz', 'O2', 'Debit', 'Pression', 'EMG PS', 'ECG', 'FCz'], 
+                      'PHYSIOLOGY' : ['EOG', 'Fp2', 'F7', 'F3', 'Fz', 'F4', 'F8', 'FC5', 'FC1', 'FC2', 'FC6', 'T7', 'C3', 'Cz', 'C4', 'T8', 'TP9', 'CP5', 'CP1', 'CP2', 'CP6', 'TP10', 'P7', 'P3', 'Pz', 'P4', 'P8', 'PO9', 'O1', 'Oz', 'O2', 'FCz', 'AF7', 'AF3', 'AF4', 'AF8', 'F5', 'F1', 'F2', 'F6', 'FT9', 'FT7', 'FC3', 'FC4', 'FT8', 'FT10', 'C5', 'C1', 'C2', 'C6', 'TP7', 'CP3', 'CPz', 'CP4', 'TP8', 'P5', 'P1', 'P2', 'P6', 'PO7', 'PO3', 'POz', 'PO4', 'PO8', 'Debit', 'Pression', 'PS', 'ECG'], 
+                      'ITL_LEO' : ['Fp1', 'Fp2', 'F7', 'F3', 'Fz', 'F4', 'F8', 'FC5', 'FC1', 'FC2', 'FC6', 'T7', 'C3', 'Cz', 'C4', 'T8', 'A1', 'CP5', 'CP1', 'CP2', 'CP6', 'A2', 'P7', 'P3', 'Pz', 'P4', 'P8', 'O1', 'Oz', 'O2', 'EOG', 'EMG', 'PRESSION']}
 
 
+    return _data_eeg, _respi, _chan_list_eeg
 
 
 
@@ -467,19 +440,20 @@ def csd_computation(raw):
 
 
 
-#raw, prep_step = raw_eeg, prep_step_wb
-def preprocessing_ieeg(raw, prep_step):
+#sujet = sujet_list[0]
+def preprocessing_ieeg(sujet):
 
+
+    ######## VIZU ######## 
+    if debug:
+        plt.plot(zscore(_respi))
+        plt.show()
+
+    ######## PREPROC ########
     print('#### PREPROCESSING ####', flush=True)
 
-    if debug:
-        raw_init = raw.copy() # first data
-        raw = raw_eeg.copy()
-
-    #### Extract data
-    raw_data = raw.get_data()
-    raw_init = raw.get_data()
-    raw_info = raw.info
+    raw_init = raw_eeg.copy()
+    raw_info = 
 
     #### Execute preprocessing
 
@@ -1197,85 +1171,60 @@ def remove_artifacts_everychan(raw, srate, trig):
 
 if __name__== '__main__':
 
-    #sujet = sujet_list[10]
+    #sujet = sujet_list[0]
     for sujet in sujet_list:
 
-        ########################################
-        ######## CONSTRUCT ARBORESCENCE ########
-        ########################################
+        #cond = cond_list[0]
+        for cond in cond_list:
 
-        construct_token = generate_folder_structure(sujet)
+            ########################################
+            ######## CONSTRUCT ARBORESCENCE ########
+            ########################################
 
-        if construct_token != 0 :
-            
-            raise ValueError("""Folder structure has been generated 
-            Lauch the script again for preproc""")
+            # construct_token = generate_folder_structure(sujet)
 
-        ########################
-        ######## PARAMS ########
-        ########################
+            # if construct_token != 0 :
+                
+            #     raise ValueError("""Folder structure has been generated 
+            #     Lauch the script again for preproc""")
 
-        # sujet = '01PD'
-        # sujet = '02MJ'
-        # sujet = '03VN'
-        # sujet = '04GB'
-        # sujet = '05LV'
-        # sujet = '06EF'
-        # sujet = '07PB'
-        # sujet = '08DM'
-        # sujet = '09TA'
-        # sujet = '10BH'
-        # sujet = '11FA'
-        # sujet = '12BD'
-        # sujet = '13FP'
-        # sujet = '14MD'
-        # sujet = '15LG'
-        # sujet = '16GM'
-        # sujet = '17JR'
-        # sujet = '18SE'
-        # sujet = '19TM'
-        # sujet = '20TY'
-        # sujet = '21ZV'
-        # sujet = '22DI'
-        # sujet = '23LF'
-        # sujet = '24TJ'
-        # sujet = '25DF'
-        # sujet = '26MN'
-        # sujet = '27BD'
-        # sujet = '28NT'
-        # sujet = '29SC'
-        # sujet = '30AR'
-        # sujet = '31HJ'
-        # sujet = '32CM'
-        # sujet = '33MA'
+            ########################
+            ######## PARAMS ########
+            ########################
 
-        # session_i = 0
-        # session_i = 1
-        # session_i = 2
+            #sujet_list =   ['01CV_MW', '02CV_OL', '03CV_MC', '04CV_VS', '05CV_LS', '06CV_JS', '07CV_HC', '08CV_YB','09CV_ML', '10CV_CM', 
+            #               '11CV_CV', '12CV_VA', '13CV_LC', '14CV_PS', '15CV_SL', '16CV_JP', '17CV_LD', '18PH_JS',  '19PH_LP',  '20PH_MN',  
+            #               '21PH_SB',  '22PH_TH',  '23PH_VA',  '24PH_VS', '25IL_NM', '26IL_HM', '27IL_DG', '28IL_DM', '29IL_DR', '30IL_DJ', 
+            #               '31IL_DC', '32IL_AP', '33IL_SL', '34IL_LL', '35IL_VR', '36IL_LC', '37IL_NN', '38IL_MA', '39IL_LY', '40IL_BA', 
+            #               '41IL_CM', '42IL_EA', '43IL_LT']
 
-        for session_i in range(3):
+            sujet = '01CV_MW'
 
-            #### pass if already computed
-            odor_code = odor_order[sujet][f'ses0{session_i+2}']
+            # cond_list = ['VS', 'CHARGE']
 
-            if os.path.exists(os.path.join(path_prep, sujet, 'sections', f'{sujet}_{odor_code}_allcond_wb.fif')):
+            cond = 'VS'
 
-                print(f"{sujet} {odor_code} ALREADY COMPTUED", flush=True)
+            if os.path.exists(os.path.join(path_prep, f'{sujet}_VS.fif')):
+
+                print(f"{sujet} ALREADY COMPTUED", flush=True)
                 continue
 
             else:
 
-                print(f'#### COMPUTE {sujet} {odor_code} ####', flush=True)
+                print(f'#### COMPUTE {sujet} ####', flush=True)
 
             ################################
             ######## EXTRACT DATA ########
             ################################
 
-            raw_eeg, raw_aux, trig, srate = open_raw_data_session(sujet, session_i)
-            #raw_eeg.info['ch_names'] # verify
-            
+            _data_eeg, _respi, _chan_list_eeg = open_raw_data(sujet, cond)
+
+            info = mne.create_info(ch_names=_chan_list_eeg, ch_types=['eeg']*_data_eeg.shape[0], sfreq=srate_g)
+            info.set_montage("standard_1020")
+
             #### verif power
             if debug == True:
+                raw_eeg = mne.io.Raw()
                 mne.viz.plot_raw_psd(raw_eeg)
 
                 view_data(raw_eeg.get_data(), raw_aux.get_data())
