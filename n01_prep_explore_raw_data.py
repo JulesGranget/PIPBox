@@ -203,7 +203,7 @@ def explore_all_data():
 
             files_name = os.listdir()
 
-            time_vec_extraction = np.arange(0, params_extraction_data[project]['time_cutoff']*60, 1/srate_g)
+            time_vec_extraction = np.arange(0, params_extraction_data[project]['time_cutoff']*60, 1/srate)
 
             #file = files_name[0]
             for file_i, file in enumerate(files_name):
@@ -233,7 +233,7 @@ def explore_all_data():
                 ######## Upsampled ########
 
                 _time_vec_origin = np.arange(0, _data.shape[1]/_srate, 1/_srate)
-                _time_vec_upsampled = np.arange(0, _data.shape[1]/_srate, 1/srate_g)
+                _time_vec_upsampled = np.arange(0, _data.shape[1]/_srate, 1/srate)
 
                 _data_upsampled = np.zeros((len(_chan_list), _time_vec_upsampled.shape[0]))
 
@@ -273,7 +273,7 @@ def explore_all_data():
                     plt.title(sujet)
                     plt.show()
 
-                    hzPxx, Pxx = scipy.signal.welch(_xr_data_allsujet.loc[sujet,chan,:], fs=srate_g, window='hann', nperseg=srate_g*20, noverlap=srate_g*10, nfft=None)
+                    hzPxx, Pxx = scipy.signal.welch(_xr_data_allsujet.loc[sujet,chan,:], fs=srate, window='hann', nperseg=srate*20, noverlap=srate*10, nfft=None)
                     plt.semilogy(hzPxx, Pxx)
                     plt.show()
 

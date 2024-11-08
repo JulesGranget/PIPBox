@@ -13,43 +13,50 @@ teleworking = False
 enable_big_execute = False
 perso_repo_computation = False
 
-srate_g = 500
+srate = 500
 
 project_name_list_raw = ['COVEM_ITL', 'NORMATIVE', 'PHYSIOLOGY', 'SLP', 'ITL_LEO']
 project_name_list = ['NORMATIVE', 'PHYSIOLOGY', 'ITL_LEO']
 
 sujet_list_project_wise = {'COVEM_ITL': ['01NM', '02HM', '03DG', '04DM', '05DR', '06DJ', '07DC', '08AP', '09SL', '10LL', '11VR', '12LC', '13NN', '14MA', '15LY', '16BA', '17CM', '18EA', '19LT'],
-                      'NORMATIVE' : ['MW02', 'OL04', 'MC05', 'VS06', 'LS07', 'JS08', 'HC09', 'YB10','ML11', 'CM12', 'CV13', 'VA14', 'LC15', 'PS16', 'SL18', 'JP19', 'LD20'], 
+                      'NORMATIVE' : ['MW02', 'OL04', 'MC05', 'LS07', 'JS08', 'HC09', 'YB10', 'CM12', 'CV13', 'VA14', 'LC15', 'PS16', 'JP19', 'LD20'], 
                       'PHYSIOLOGY' : ['JS08',  'LP26',  'MN23',  'SB27',  'TH24',  'VA14',  'VS06'], 
                       'SLP' : ['AB33', 'BK35', 'CD28', 'ES32', 'JC30', 'MM34', 'SG29', 'ZM31'],
-                      'ITL_LEO' : ['01NM', '02HM', '03DG', '04DM', '05DR', '06DJ', '07DC', '08AP', '09SL', '10LL', '11VR', '12LC', '13NN', '14MA', '15LY', '16BA', '17CM', '18EA', '19LT']}
+                      'ITL_LEO' : ['01NM', '03DG', '04DM', '06DJ', '07DC', '08AP', '09SL', '10LL', '11VR', '12LC', '14MA', '15LY', '16BA', '17CM', '18EA', '19LT']}
 
-sujet_list = ['01NM_MW', '02NM_OL', '03NM_MC', '04NM_VS', '05NM_LS', '06NM_JS', '07NM_HC', '08NM_YB','09NM_ML', '10NM_CM', '11NM_CV', '12NM_VA', '13NM_LC', '14NM_PS', '15NM_SL', '16NM_JP', '17NM_LD',
-              '18PH_JS',  '19PH_LP',  '20PH_MN',  '21PH_SB',  '22PH_TH',  '23PH_VA',  '24PH_VS',
-              '25IL_NM', '26IL_HM', '27IL_DG', '28IL_DM', '29IL_DR', '30IL_DJ', '31IL_DC', '32IL_AP', '33IL_SL', '34IL_LL', '35IL_VR', '36IL_LC', '37IL_NN', '38IL_MA', '39IL_LY', '40IL_BA', '41IL_CM', '42IL_EA', '43IL_LT']
+sujet_list = ['01NM_MW', '02NM_OL', '03NM_MC', '04NM_LS', '05NM_JS', '06NM_HC', '07NM_YB', '08NM_CM', '09NM_CV', '10NM_VA', '11NM_LC', '12NM_PS', '13NM_JP', '14NM_LD',
+              '15PH_JS',  '16PH_LP',  '17PH_MN',  '18PH_SB',  '19PH_TH',  '20PH_VA',  '21PH_VS',
+              '22IL_NM', '23IL_DG', '24IL_DM', '25IL_DJ', '26IL_DC', '27IL_AP', '28IL_SL', '29IL_LL', '30IL_VR', '31IL_LC', '32IL_MA', '33IL_LY', '34IL_BA', '35IL_CM', '36IL_EA', '37IL_LT']
 
 cond_list = ['VS', 'CHARGE']
 
 sujet_project_nomenclature = {'NM' : 'NORMATIVE', 'PH' : 'PHYSIOLOGY', 'IL' : 'ITL_LEO'}
 
-sujet_list_correspondance = {'MW02' : '01NM_MW', 'OL04' : '02NM_OL', 'MC05' : '03NM_MC', 'VS06' : '04NM_VS', 'LS07' : '05NM_LS', 'JS08' : '06NM_JS', 'HC09' : '07NM_HC', 
-                             'YB10' : '08NM_YB', 'ML11' : '09NM_ML', 'CM12' : '10NM_CM', 'CV13' : '11NM_CV', 'VA14' : '12NM_VA', 'LC15' : '13NM_LC', 'PS16' : '14NM_PS', 
-                             'SL18' : '15NM_SL', 'JP19' : '16NM_JP', 'LD20' : '17NM_LD', 'JS08' : '18PH_JS', 'LP26' : '19PH_LP', 'MN23' : '20PH_MN', 'SB27' : '21PH_SB',
-                             'TH24' : '22PH_TH', 'VA14' : '23PH_VA', 'VS06' : '24PH_VS', '01NM' : '25IL_NM', '02HM' : '26IL_HM', '03DG' : '27IL_DG', '04DM' : '28IL_DM', 
-                             '05DR' : '29IL_DR', '06DJ' : '30IL_DJ', '07DC' : '31IL_DC', '08AP' : '32IL_AP', '09SL' : '33IL_SL', '10LL' : '34IL_LL', '11VR' : '35IL_VR', 
-                             '12LC' : '36IL_LC', '13NN' : '37IL_NN', '14MA' : '38IL_MA', '15LY' : '39IL_LY', '16BA' : '40IL_BA', '17CM' : '41IL_CM', '18EA' : '42IL_EA', 
-                             '19LT' : '43IL_LT'}
+sujet_list_correspondance = {'NM_MW02' : '01NM_MW', 'NM_OL04' : '02NM_OL', 'NM_MC05' : '03NM_MC', 'NM_LS07' : '04NM_LS', 'NM_JS08' : '05NM_JS', 'NM_HC09' : '06NM_HC', 
+                             'NM_YB10' : '07NM_YB', 'NM_CM12' : '08NM_CM', 'NM_CV13' : '09NM_CV', 'NM_VA14' : '10NM_VA', 'NM_LC15' : '11NM_LC', 'NM_PS16' : '12NM_PS', 
+                             'NM_JP19' : '13NM_JP', 'NM_LD20' : '14NM_LD', 'PH_JS08' : '15PH_JS', 'PH_LP26' : '16PH_LP', 'PH_MN23' : '17PH_MN', 'PH_SB27' : '18PH_SB',
+                             'PH_TH24' : '19PH_TH', 'PH_VA14' : '20PH_VA', 'PH_VS06' : '21PH_VS', 'IL_01NM' : '22IL_NM', 'IL_03DG' : '23IL_DG', 'IL_04DM' : '24IL_DM', 
+                             'IL_06DJ' : '25IL_DJ', 'IL_07DC' : '26IL_DC', 'IL_08AP' : '27IL_AP', 'IL_09SL' : '28IL_SL', 'IL_10LL' : '29IL_LL', 'IL_11VR' : '30IL_VR', 
+                             'IL_12LC' : '31IL_LC', 'IL_13NN' : '32IL_MA', 'IL_15LY' : '33IL_LY', 'IL_16BA' : '34IL_BA', 'IL_17CM' : '35IL_CM', 'IL_18EA' : '36IL_EA', 'IL_19LT' : '37IL_LT'}
 
 chan_list_project_wise = {'COVEM_ITL': ['FC1', 'FC2', 'Cz', 'C2', 'CP1', 'CP2', 'EMG'],
-                      'NORMATIVE' : ['FP1', 'F7', 'F3', 'Fz', 'FC5', 'FC1', 'A1', 'T7', 'C3', 'Cz', 'TP9', 'CP5', 'CP1', 'P7', 'P3', 'Pz', 'FP2', 'F4', 'F8', 'FC2', 'FC6', 'C4', 'T8', 'A2', 'CP2', 'CP6', 'TP10', 'P4', 'P8', 'O1', 'Oz', 'O2', 'Debit', 'Pression', 'EMG PS', 'ECG', 'FCz'], 
+                      'NORMATIVE' : ['Fp1', 'F7', 'F3', 'Fz', 'FC5', 'FC1', 'A1', 'T7', 'C3', 'Cz', 'TP9', 'CP5', 'CP1', 'P7', 'P3', 'Pz', 'Fp2', 'F4', 'F8', 'FC2', 'FC6', 'C4', 'T8', 'A2', 'CP2', 'CP6', 'TP10', 'P4', 'P8', 'O1', 'Oz', 'O2', 'Debit', 'Pression', 'EMG PS', 'ECG', 'FCz'], 
                       'PHYSIOLOGY' : ['EOG', 'Fp2', 'F7', 'F3', 'Fz', 'F4', 'F8', 'FC5', 'FC1', 'FC2', 'FC6', 'T7', 'C3', 'Cz', 'C4', 'T8', 'TP9', 'CP5', 'CP1', 'CP2', 'CP6', 'TP10', 'P7', 'P3', 'Pz', 'P4', 'P8', 'PO9', 'O1', 'Oz', 'O2', 'FCz', 'AF7', 'AF3', 'AF4', 'AF8', 'F5', 'F1', 'F2', 'F6', 'FT9', 'FT7', 'FC3', 'FC4', 'FT8', 'FT10', 'C5', 'C1', 'C2', 'C6', 'TP7', 'CP3', 'CPz', 'CP4', 'TP8', 'P5', 'P1', 'P2', 'P6', 'PO7', 'PO3', 'POz', 'PO4', 'PO8', 'Debit', 'Pression', 'PS', 'ECG'], 
                       'SLP' : ['Fp1', 'Fp2', 'F7', 'F3', 'Fz', 'F4', 'F8', 'FC5', 'FC1', 'FC2', 'FC6', 'T7', 'C3', 'Cz', 'C4', 'T8', 'TP9', 'CP5', 'CP1', 'CP2', 'CP6', 'TP10', 'P7', 'P3', 'Pz', 'P4', 'P8', 'PO9', 'O1', 'Oz', 'O2', 'FCz', 'AF7', 'AF3', 'AF4', 'AF8', 'F5', 'F1', 'F2', 'F6', 'FT9', 'FT7', 'FC3', 'FC4', 'FT8', 'FT10', 'C5', 'C1', 'C2', 'C6', 'TP7', 'CP3', 'CPz', 'CP4', 'TP8', 'P5', 'P1', 'P2', 'P6', 'PO7', 'PO3', 'POz', 'PO4', 'PO8', 'ECG', 'ScalEMG'],
                       'ITL_LEO' : ['Fp1', 'Fp2', 'F7', 'F3', 'Fz', 'F4', 'F8', 'FC5', 'FC1', 'FC2', 'FC6', 'T7', 'C3', 'Cz', 'C4', 'T8', 'A1', 'CP5', 'CP1', 'CP2', 'CP6', 'A2', 'P7', 'P3', 'Pz', 'P4', 'P8', 'O1', 'Oz', 'O2', 'EOG', 'EMG', 'PRESSION']}
 
+chan_list = np.array(['C3', 'C4', 'CP1', 'CP2', 'CP5', 'CP6', 'Cz', 'F3', 'F4', 'F7',
+       'F8', 'FC1', 'FC2', 'FC5', 'FC6', 'Fp2', 'Fz', 'O1', 'O2', 'Oz',
+       'P3', 'P4', 'P7', 'P8', 'Pz', 'T7', 'T8', 'pression'])
 
+chan_list_eeg = np.array(['C3', 'C4', 'CP1', 'CP2', 'CP5', 'CP6', 'Cz', 'F3', 'F4', 'F7',
+       'F8', 'FC1', 'FC2', 'FC5', 'FC6', 'Fp2', 'Fz', 'O1', 'O2', 'Oz',
+       'P3', 'P4', 'P7', 'P8', 'Pz', 'T7', 'T8'])
 
 #### NOTES ####
 # In PHYSIOLOGY sujet ['MC05', 'OL04'] have been excluded because they cant load
+# In ITL sujet ['NN', ] have been excluded due to bad signals in ITL
+# In NORMATIVE ['VS06', 'ML11', 'SL18', 'DR05'] removed no signal in CHARGE
 
 condition_list_project_wise = {'COVEM_ITL': ['CHARGE'],
                       'NORMATIVE' : ['CHARGE', 'PETITE CHARGE', 'ARTIFACT', 'SNIFS', 'VS', 'VS2'], 
@@ -63,13 +70,6 @@ params_extraction_data = {'COVEM_ITL' : {'time_cutoff' : 13},
                       'SLP' : {'time_cutoff' : 0},
                        'ITL_LEO' : {'time_cutoff' : 0}}
 
-physiology_trig = {'JS08' : {'trig' : ['VS', 'CHARGE'], 'start' : [0, 323500], 'stop' : [300000, 642000]},
-                   'LP26' : {'trig' : ['VS', 'CHARGE'], 'start' : [0, 350000], 'stop' : [300000, 668000]},
-                   'MN23' : {'trig' : ['VS', 'CHARGE'], 'start' : [0, 330000], 'stop' : [300000, 663000]},
-                   'SB27' : {'trig' : ['VS', 'CHARGE'], 'start' : [0, 342000], 'stop' : [300000, 650000]},
-                   'TH24' : {'trig' : ['VS', 'CHARGE'], 'start' : [0, 330000], 'stop' : [300000, 633000]},
-                   'VA14' : {'trig' : ['VS', 'CHARGE'], 'start' : [0, 316000], 'stop' : [310000, 627000]},
-                   'VS06' : {'trig' : ['VS', 'CHARGE'], 'start' : [0, 362000], 'stop' : [310000, 670000]}}
 
 
 ########################################
@@ -179,15 +179,17 @@ n_core_slurms = 10
 ######## RESPI PARAMS ########
 ################################ 
 
-#### INSPI DOWN
+
 sujet_respi_adjust = {
-'01PD':'inverse',   '02MJ':'inverse',   '03VN':'inverse',   '04GB':'inverse',   '05LV':'inverse',
-'06EF':'inverse',   '07PB':'inverse',   '08DM':'inverse',   '09TA':'inverse',   '10BH':'inverse',
-'11FA':'inverse',   '12BD':'inverse',   '13FP':'inverse',   '14MD':'inverse',   '15LG':'inverse',
-'16GM':'inverse',   '17JR':'inverse',   '18SE':'inverse',   '19TM':'inverse',   '20TY':'inverse',
-'21ZV':'inverse',   '22DI':'inverse',   '23LF':'inverse',   '24TJ':'inverse',   '25DF':'inverse',
-'26MN':'inverse',   '27BD':'inverse',   '28NT':'inverse',   '29SC':'inverse',   '30AR':'inverse',
-'31HJ':'inverse',   '32CM':'inverse',   '33MA':'inverse'
+'01NM_MW':'normal',   '02NM_OL':'normal',   '03NM_MC':'normal',   '04NM_LS':'normal',
+'05NM_JS':'normal',   '06NM_HC':'normal',   '07NM_YB':'normal',   '08NM_CM':'normal',
+'09NM_CV':'normal',   '10NM_VA':'normal',   '11NM_LC':'normal',   '12NM_PS':'normal',  
+'13NM_JP':'normal',   '14NM_LD':'normal',   '15PH_JS':'inverse',   '16PH_LP':'normal',   '17PH_MN':'inverse',
+'18PH_SB':'normal',   '19PH_TH':'inverse',   '20PH_VA':'inverse',   '21PH_VS':'inverse',   '22IL_NM':'inverse',
+'23IL_DG':'inverse',   '24IL_DM':'inverse',   '25IL_DJ':'inverse',
+'26IL_DC':'inverse',   '27IL_AP':'inverse',   '28IL_SL':'inverse',   '29IL_LL':'inverse',   '30IL_VR':'inverse',
+'31IL_LC':'inverse',   '32IL_MA':'inverse',   '33IL_LY':'inverse',   '34IL_BA':'inverse',   '35IL_CM':'inverse',   
+'36IL_EA':'inverse',   '37IL_LT':'inverse'
 }
 
 
@@ -199,32 +201,20 @@ cycle_detection_params = {
 }
 
 
-scale_for_respi_abnormalities = {'04GB' : {'session' : 'o', 'coeff' : 6840}, '07PB' : {'session' : 'o', 'coeff' : 597}}
-
-
-################################
-######## ECG PARAMS ########
-################################ 
-
-sujet_ecg_adjust = {
-'01PD':'inverse',   '02MJ':'inverse',   '03VN':'inverse',   '04GB':'inverse',   '05LV':'inverse',
-'06EF':'inverse',   '07PB':'inverse',   '08DM':'inverse',   '09TA':'inverse',   '10BH':'inverse',
-'11FA':'inverse',   '12BD':'inverse',   '13FP':'inverse',   '14MD':'inverse',   '15LG':'inverse',
-'16GM':'inverse',   '17JR':'inverse',   '18SE':'inverse',   '19TM':'inverse',   '20TY':'inverse',
-'21ZV':'inverse',   '22DI':'inverse',   '23LF':'inverse',   '24TJ':'inverse',   '25DF':'inverse',
-'26MN':'inverse',   '27BD':'inverse',   '28NT':'inverse',   '29SC':'inverse',   '30AR':'inverse',
-'31HJ':'inverse',   '32CM':'inverse',   '33MA':'inverse'
-}
-
-
-hrv_metrics_short_name = ['HRV_RMSSD', 'HRV_MeanNN', 'HRV_SDNN', 'HRV_pNN50', 'HRV_LF', 'HRV_HF', 'HRV_SD1', 'HRV_SD2']
-
 
 
 
 ################################
 ######## PREP PARAMS ########
 ################################ 
+
+section_time_general = 300 #sec
+
+section_timming_PHYSIOLOGY = {
+'15PH_JS': {'VS' : [0, 613], 'CHARGE' : [644, 1280]},   '16PH_LP': {'VS' : [0, 610], 'CHARGE' : [700, 1340]},   '17PH_MN': {'VS' : [0, 610], 'CHARGE' : [655, 1340]}, 
+'18PH_SB': {'VS' : [0, 610], 'CHARGE' : [680, 1311]},   '19PH_TH': {'VS' : [0, 620], 'CHARGE' : [650, 1280]},   '20PH_VA': {'VS' : [0, 610], 'CHARGE' : [630, 1250]},   
+'21PH_VS': {'VS' : [0, 635], 'CHARGE' : [720, 1340]}
+}
 
 
 prep_step_debug = {
@@ -238,9 +228,9 @@ prep_step_debug = {
 'csd_computation' : {'execute': True},
 }
 
-prep_step_wb = {
+prep_step = {
 'reref' : {'execute': False, 'params' : ['TP9', 'TP10']}, #chan = chan to reref
-'mean_centered' : {'execute': True},
+'detrend_mean_centered' : {'execute': True},
 'line_noise_removing' : {'execute': True},
 'high_pass' : {'execute': False, 'params' : {'l_freq' : None, 'h_freq': None}},
 'low_pass' : {'execute': False, 'params' : {'l_freq' : None, 'h_freq': None}},
@@ -249,27 +239,6 @@ prep_step_wb = {
 'average_reref' : {'execute': False},
 }
 
-prep_step_lf = {
-'reref' : {'execute': False, 'params' : ['chan']}, #chan = chan to reref
-'mean_centered' : {'execute': True},
-'line_noise_removing' : {'execute': True},
-'high_pass' : {'execute': False, 'params' : {'l_freq' : None, 'h_freq': None}},
-'low_pass' : {'execute': True, 'params' : {'l_freq' : 0, 'h_freq': 45}},
-'ICA_computation' : {'execute': True},
-'average_reref' : {'execute': False},
-'csd_computation' : {'execute': True},
-}
-
-prep_step_hf = {
-'reref_mastoide' : {'execute': False},
-'mean_centered' : {'execute': True},
-'line_noise_removing' : {'execute': True},
-'high_pass' : {'execute': False, 'params' : {'l_freq' : 55, 'h_freq': None}},
-'low_pass' : {'execute': True, 'params' : {'l_freq' : None, 'h_freq': None}},
-'ICA_computation' : {'execute': True},
-'average_reref' : {'execute': False},
-'csd_computation' : {'execute': True},
-}
 
 
 
@@ -289,149 +258,6 @@ PPI_lm_time = [-2.5, 0]
 allplot_erp_ylim = (-0.3, 0.3)
 
 ERP_n_surrogate = 1000
-
-
-
-
-########################################
-######## PARAMS SURROGATES ########
-########################################
-
-#### Pxx Cxy
-
-zero_pad_coeff = 15
-
-def get_params_spectral_analysis(srate):
-    nwind = int( 20*srate ) # window length in seconds*srate
-    nfft = nwind*zero_pad_coeff # if no zero padding nfft = nwind
-    noverlap = np.round(nwind/2) # number of points of overlap here 50%
-    hannw = scipy.signal.windows.hann(nwind) # hann window
-
-    return nwind, nfft, noverlap, hannw
-
-#### plot Pxx Cxy  
-if zero_pad_coeff - 5 <= 0:
-    remove_zero_pad = 0
-remove_zero_pad = zero_pad_coeff - 5
-
-#### stretch
-stretch_point_surrogates = 500
-
-#### coh
-n_surrogates_coh = 500
-freq_surrogates = [0, 2]
-percentile_coh = .95
-
-#### cycle freq
-n_surrogates_cyclefreq = 500
-percentile_cyclefreq_up = .99
-percentile_cyclefreq_dw = .01
-
-
-
-
-
-
-################################
-######## PRECOMPUTE TF ########
-################################
-
-
-#### stretch
-stretch_point_TF = 500
-stretch_TF_auto = False
-ratio_stretch_TF = 0.5
-
-#### TF & ITPC
-nfrex = 150
-ncycle_list = [7, 41]
-freq_list = [2, 150]
-srate_dw = 10
-wavetime = np.arange(-3,3,1/srate_g)
-frex = np.logspace(np.log10(freq_list[0]), np.log10(freq_list[1]), nfrex) 
-cycles = np.logspace(np.log10(ncycle_list[0]), np.log10(ncycle_list[1]), nfrex).astype('int')
-Pxx_wavelet_norm = 1000
-
-
-#### STATS
-n_surrogates_tf = 500
-tf_percentile_sel_stats_dw = 5 
-tf_percentile_sel_stats_up = 95 
-tf_stats_percentile_cluster = 95
-tf_stats_percentile_cluster_manual_perm = 80
-erp_time_cluster_thresh = 50 #ms
-norm_method = 'rscore'# 'zscore', 'dB'
-exclude_frex_range = [48, 52]
-
-#### plot
-tf_plot_percentile_scale = 99 #for one side
-
-
-
-
-################################
-######## POWER ANALYSIS ########
-################################
-
-#### analysis
-coh_computation_interval = .02 #Hz around respi
-
-
-################################
-######## FC ANALYSIS ########
-################################
-
-nfrex_fc = 50
-
-#### band to remove
-freq_band_fc_analysis = {'theta' : [4, 8], 'alpha' : [9,12], 'beta' : [15,40], 'l_gamma' : [50, 80], 'h_gamma' : [80, 120]}
-
-percentile_thresh = 90
-
-#### for DFC
-slwin_dict = {'theta' : 5, 'alpha' : 3, 'beta' : 1, 'l_gamma' : .3, 'h_gamma' : .3} # seconds
-slwin_step_coeff = .1  # in %, 10% move
-
-band_name_fc_dfc = ['theta', 'alpha', 'beta', 'l_gamma', 'h_gamma']
-
-#### cond definition
-cond_FC_DFC = ['FR_CV', 'AL', 'SNIFF', 'AC']
-
-#### down sample for AL
-dw_srate_fc_AL = 10
-
-#### down sample for AC
-dw_srate_fc_AC = 50
-
-#### n points for AL interpolation
-n_points_AL_interpolation = 10000
-n_points_AL_chunk = 1000
-
-#### for df computation
-percentile_graph_metric = 25
-
-
-
-################################
-######## TOPOPLOT ########
-################################
-
-around_respi_Cxy = 0.025
-
-
-################################
-######## HRV ANALYSIS ########
-################################
-
-
-
-srate_resample_hrv = 10
-nwind_hrv = int( 128*srate_resample_hrv )
-nfft_hrv = nwind_hrv
-noverlap_hrv = np.round(nwind_hrv/10)
-win_hrv = scipy.signal.windows.hann(nwind_hrv)
-f_RRI = (.1, .5)
-
 
 
 

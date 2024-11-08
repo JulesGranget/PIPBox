@@ -24,12 +24,50 @@ debug = False
 ######## OPEN DATA ########
 ################################
 
-#sujet, cond = sujet_list[21], 'VS'
+def find_common_chan_list():
+
+    ######## ADJUST CHAN LIST ########
+
+    chan_list_all = []
+    for project in project_name_list:
+        chan_list_all.extend(chan_list_project_wise[project])
+
+    chan_list_all = np.unique(np.array(chan_list_all))
+
+    df_chan_list_shared = {'chan' : [], 'NORMATIVE' : [],  'PHYSIOLOGY' : [], 'ITL_LEO' : []}
+
+    for chan in chan_list_all:
+        df_chan_list_shared['chan'].append(chan)
+        df_chan_list_shared['NORMATIVE'].append(chan in chan_list_project_wise['NORMATIVE'])
+        df_chan_list_shared['PHYSIOLOGY'].append(chan in chan_list_project_wise['PHYSIOLOGY'])
+        df_chan_list_shared['ITL_LEO'].append(chan in chan_list_project_wise['ITL_LEO'])
+
+    df_chan_list_shared = pd.DataFrame(df_chan_list_shared)
+
+    shared_list = []
+    for chan in chan_list_all:
+        if df_chan_list_shared.query(f"chan == '{chan}'").values[0,1:].sum() != 3:
+            shared_list.append(False)
+        else:
+            shared_list.append(True)
+
+    df_chan_list_shared['shared'] = shared_list
+
+    os.chdir(path_data)
+    df_chan_list_shared.to_excel('df_chan_shared_across_project.xlsx')
+
+    # df_chan_list_shared.query(f"shared == True")['chan'].values
+
+
+
+
+
+#sujet, cond = sujet_list[0], 'VS'
 def open_raw_data(sujet, cond):
 
     ######## identify project and sujet ########        
     sujet_project = sujet_project_nomenclature[sujet[2:4]]
-    sujet_init_name = list(sujet_list_correspondance.keys())[list(sujet_list_correspondance.values()).index(sujet)]
+    sujet_init_name = list(sujet_list_correspondance.keys())[list(sujet_list_correspondance.values()).index(sujet)][3:]
 
     ######## OPEN DATA ########
     if sujet_project == 'NORMATIVE':
@@ -45,8 +83,22 @@ def open_raw_data(sujet, cond):
         _respi = _data.get_data()[pression_chan_i,:]
         _srate_init = _data.info['sfreq']
 
+        _trig = _data.annotations.onset
+
         if debug:
             mne.viz.plot_raw(_data, n_channels=1)
+
+            plt.plot(respi)
+            plt.show()
+
+        #### sel chan 
+        chan_sel_list_i = [chan_list_project_wise[sujet_project].index(chan) for chan in chan_list_eeg if chan in chan_list_project_wise[sujet_project]]
+        _data_eeg = _data_eeg[chan_sel_list_i,:]
+
+        #### chunk
+        _data_eeg = _data_eeg[:,:int(section_time_general*_srate_init)]
+        _respi = _respi[:int(section_time_general*_srate_init)]
+        _trig = _trig[_trig<=int(section_time_general)]
 
     elif sujet_project == 'PHYSIOLOGY':
 
@@ -65,8 +117,32 @@ def open_raw_data(sujet, cond):
         _respi = _data.get_data()[pression_chan_i,:]
         _srate_init = _data.info['sfreq']
 
+        _trig = _data.annotations.onset
+
         if debug:
             mne.viz.plot_raw(_data, n_channels=1)
+
+        #### sel chan 
+        chan_sel_list_i = [chan_list_project_wise[sujet_project].index(chan) for chan in chan_list_eeg if chan in chan_list_project_wise[sujet_project]]
+        _data_eeg = _data_eeg[chan_sel_list_i,:]
+
+        #### chunk cond
+        if cond == 'VS':
+            _data_eeg = _data_eeg[:,:int(section_time_general*_srate_init)]
+            _respi = _respi[:int(section_time_general*_srate_init)]
+            _trig = _trig[_trig<=int(section_time_general)]
+
+        elif cond == 'CHARGE':
+            _data_eeg = _data_eeg[:,int(section_timming_PHYSIOLOGY[sujet][cond][0]*_srate_init):int((section_timming_PHYSIOLOGY[sujet][cond][0]+section_time_general)*_srate_init)]
+            _respi = _respi[int(section_timming_PHYSIOLOGY[sujet][cond][0]*_srate_init):int((section_timming_PHYSIOLOGY[sujet][cond][0]+section_time_general)*_srate_init)]
+            _trig = _trig[(_trig>=int(section_timming_PHYSIOLOGY[sujet][cond][0])) & (_trig<=int(section_timming_PHYSIOLOGY[sujet][cond][0]+section_time_general))]
+            _trig -= section_timming_PHYSIOLOGY[sujet][cond][0]
+
+        if debug:
+
+            plt.plot(_respi)
+            plt.vlines(_trig*_srate_init, ymin=_respi.min(), ymax=_respi.max(), color='r')
+            plt.show()
 
     elif sujet_project == 'ITL_LEO':
 
@@ -74,8 +150,13 @@ def open_raw_data(sujet, cond):
 
         print(f"OPEN {sujet_project} : {sujet}")
 
-        file_name = [file for file in os.listdir() if file.find(sujet_init_name) != -1 and file.find(f'{cond}.edf') != -1][0]
-        file_name_marker = [file for file in os.listdir() if file.find(sujet_init_name) != -1 and file.find(f'{cond}.Markers') != -1][0]
+        if cond == 'VS':
+            cond_to_search = 'VS'
+        elif cond == 'CHARGE':
+            cond_to_search = 'ITL'
+
+        file_name = [file for file in os.listdir() if file.find(sujet_init_name) != -1 and file.find(f'{cond_to_search}.edf') != -1][0]
+        file_name_marker = [file for file in os.listdir() if file.find(sujet_init_name) != -1 and file.find(f'{cond_to_search}.Markers') != -1][0]
 
         _data = mne.io.read_raw_edf(file_name)
         _chan_list_eeg = _data.info['ch_names'][:-3]
@@ -84,14 +165,31 @@ def open_raw_data(sujet, cond):
         _respi = _data.get_data()[pression_chan_i,:]
         _srate_init = _data.info['sfreq']
 
+        f = open(file_name_marker, "r")
+        _trig = [int(line.split(',')[2][1:]) for line_i, line in enumerate(f.read().split('\n')) if len(line.split(',')) == 5 and line.split(',')[0] == 'Response']
+        _trig = np.array(_trig) / _srate_init
+
+        #### sel chan 
+        chan_sel_list_i = [chan_list_project_wise[sujet_project].index(chan) for chan in chan_list_eeg if chan in chan_list_project_wise[sujet_project]]
+        _data_eeg = _data_eeg[chan_sel_list_i,:]
+
+        #### chunk
+        _data_eeg = _data_eeg[:,:int(section_time_general*_srate_init)]
+        _respi = _respi[:int(section_time_general*_srate_init)]
+        _trig = _trig[_trig<=int(section_time_general)]
+
+    ######## ADJUST RESPI ########
+    if sujet_respi_adjust[sujet] == 'inverse':
+        _respi *= -1
+
     ######## RESAMPLE ########
     if _srate_init != 500:
 
         #### EEG
         _time_vec_origin = np.arange(0, _data_eeg.shape[-1]/_srate_init, 1/_srate_init)
-        _time_vec_dwsampled = np.arange(0, _data_eeg.shape[-1]/_srate_init, 1/srate_g)
+        _time_vec_dwsampled = np.arange(0, _data_eeg.shape[-1]/_srate_init, 1/srate)
 
-        _data_dwsampled = np.zeros((len(_chan_list_eeg), _time_vec_dwsampled.shape[0]))
+        _data_dwsampled = np.zeros((len(chan_list_eeg), _time_vec_dwsampled.shape[0]))
 
         for chan_i in range(_data_eeg.shape[0]):
             x = _data_eeg[chan_i,:]
@@ -101,15 +199,76 @@ def open_raw_data(sujet, cond):
         _data_eeg = _data_dwsampled
 
         #### AUX
-        _respi = np.interp(_time_vec_dwsampled, _time_vec_origin, _respi)
+        _respi = np.interp(_time_vec_dwsampled, _time_vec_origin, _respi) 
 
-    ######## ADJUST CHAN LIST ########
-                      'NORMATIVE' : ['FP1', 'F7', 'F3', 'Fz', 'FC5', 'FC1', 'A1', 'T7', 'C3', 'Cz', 'TP9', 'CP5', 'CP1', 'P7', 'P3', 'Pz', 'FP2', 'F4', 'F8', 'FC2', 'FC6', 'C4', 'T8', 'A2', 'CP2', 'CP6', 'TP10', 'P4', 'P8', 'O1', 'Oz', 'O2', 'Debit', 'Pression', 'EMG PS', 'ECG', 'FCz'], 
-                      'PHYSIOLOGY' : ['EOG', 'Fp2', 'F7', 'F3', 'Fz', 'F4', 'F8', 'FC5', 'FC1', 'FC2', 'FC6', 'T7', 'C3', 'Cz', 'C4', 'T8', 'TP9', 'CP5', 'CP1', 'CP2', 'CP6', 'TP10', 'P7', 'P3', 'Pz', 'P4', 'P8', 'PO9', 'O1', 'Oz', 'O2', 'FCz', 'AF7', 'AF3', 'AF4', 'AF8', 'F5', 'F1', 'F2', 'F6', 'FT9', 'FT7', 'FC3', 'FC4', 'FT8', 'FT10', 'C5', 'C1', 'C2', 'C6', 'TP7', 'CP3', 'CPz', 'CP4', 'TP8', 'P5', 'P1', 'P2', 'P6', 'PO7', 'PO3', 'POz', 'PO4', 'PO8', 'Debit', 'Pression', 'PS', 'ECG'], 
-                      'ITL_LEO' : ['Fp1', 'Fp2', 'F7', 'F3', 'Fz', 'F4', 'F8', 'FC5', 'FC1', 'FC2', 'FC6', 'T7', 'C3', 'Cz', 'C4', 'T8', 'A1', 'CP5', 'CP1', 'CP2', 'CP6', 'A2', 'P7', 'P3', 'Pz', 'P4', 'P8', 'O1', 'Oz', 'O2', 'EOG', 'EMG', 'PRESSION']}
+    ######## EXTRACT TRIG ########
+
+    if debug:
+
+        time_vec = np.arange(0, _respi.shape[0]/srate, 1/srate)
+            
+        plt.plot(time_vec, _respi)
+        plt.title(f"{sujet}, {cond}")
+        plt.vlines(_trig, ymin=_respi.min(), ymax=_respi.max(), color='r')
+        plt.show()
+
+    return _data_eeg, _respi, _trig
 
 
-    return _data_eeg, _respi, _chan_list_eeg
+
+
+
+
+
+
+
+
+
+################################
+######## VIEWER ########
+################################
+
+#data, data_aux = raw_eeg.get_data(), raw_aux.get_data()
+def view_data(data_eeg, respi, return_fig=False):
+
+    #### downsample
+    print('resample')
+    srate_downsample = 250
+
+    time_vec = np.linspace(0,data_eeg.shape[-1],data_eeg.shape[-1])/srate
+    time_vec_resample = np.linspace(0,data_eeg.shape[-1],int(data_eeg.shape[-1] * (srate_downsample / srate)))/srate
+
+    data_resampled = np.zeros((data_eeg.shape[0], time_vec_resample.shape[0]))
+    respi_resampled = np.zeros((time_vec_resample.shape[0]))
+
+    for chan_i in range(data_eeg.shape[0]):
+        f = scipy.interpolate.interp1d(time_vec, data_eeg[chan_i,:], kind='linear', fill_value="extrapolate")
+        data_resampled[chan_i,:] = f(time_vec_resample)
+
+    f = scipy.interpolate.interp1d(time_vec, respi, kind='quadratic', fill_value="extrapolate")
+    respi_resampled = f(time_vec_resample)
+
+    print('plot')
+
+    fig, ax = plt.subplots()
+
+    ax.plot(time_vec_resample, zscore(respi_resampled), label='respi')
+
+    for chan_i, chan in enumerate(chan_list_eeg):
+    
+        x = data_resampled[chan_i,:]
+        ax.plot(time_vec_resample, zscore(x)+3*(chan_i)+1, label=chan)
+    
+    plt.legend()
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(reversed(handles), reversed(labels), loc='upper left')  # reverse to keep order consistent
+
+    if return_fig:
+        return fig
+    else:
+        plt.show()
+
+
 
 
 
@@ -119,63 +278,15 @@ def open_raw_data(sujet, cond):
 ######## AUX PREPROC ########
 ################################
 
-def ecg_detection(raw_aux):
-
-    print('#### ECG DETECTION ####', flush=True)
-
-    #### params
-    data_aux = raw_aux.get_data()
-    chan_list_aux = raw_aux.info['ch_names']
-    srate = int(raw_aux.info['sfreq'])
-    
-    #### adjust ECG
-    if sujet_ecg_adjust.get(sujet) == 'inverse':
-        data_aux[1,:] = data_aux[1,:] * -1
-
-    #### filtre
-    ecg_clean = physio.preprocess(data_aux[1,:], srate, band=[5., 45.], ftype='bessel', order=5, normalize=True)
-
-    ecg_events_time = physio.detect_peak(ecg_clean, srate, thresh=10, exclude_sweep_ms=4.0) # thresh = n MAD
-
-    if debug:
-        plt.plot(data_aux[1,:])
-        plt.plot(ecg_clean)
-        plt.vlines(ecg_events_time, ymin=ecg_clean.min(), ymax=ecg_clean.max(), color='r')
-        plt.show()
-    
-    #### replace
-    data_aux[1,:] = ecg_clean.copy()
-
-    ch_types = ['misc'] * (np.size(data_aux,0)) # ‘ecg’, ‘stim’, ‘eog’, ‘misc’, ‘seeg’, ‘eeg’
-
-    info_aux = mne.create_info(chan_list_aux, srate, ch_types=ch_types)
-    raw_aux = mne.io.RawArray(data_aux, info_aux)
-
-    # raw_aux.notch_filter(50, picks='misc', verbose='critical')
-
-    # ECG
-    # event_id = 999
-    # ch_name = 'ECG'
-    # qrs_threshold = .5 #between o and 1
-    # ecg_events = mne.preprocessing.find_ecg_events(raw_aux, event_id=event_id, ch_name=ch_name, qrs_threshold=qrs_threshold, verbose='critical')
-    # ecg_events_time = list(ecg_events[0][:,0])
-
-    return raw_aux, ecg_events_time
 
 
-
-def respi_preproc(raw_aux):
-
-    raw_aux.info['ch_names']
-    srate = raw_aux.info['sfreq']
-    respi = raw_aux.get_data()[0,:]
+def respi_preproc(respi):
 
     #### inspect Pxx
     if debug:
         plt.plot(np.arange(respi.shape[0])/srate, respi)
         plt.show()
 
-        srate = raw_aux.info['sfreq']
         nwind = int(10*srate)
         nfft = nwind
         noverlap = np.round(nwind/2)
@@ -185,24 +296,6 @@ def respi_preproc(raw_aux):
         plt.legend()
         plt.xlim(0,60)
         plt.show()
-
-    #### invert if needed to have inspi down
-    if sujet_respi_adjust[sujet] == 'inverse':
-        respi *= -1
-
-    #### filter respi   
-    # fcutoff = 1.5
-    # transw  = .2
-    # order   = np.round( 7*srate/fcutoff )
-    # if order%2==0:
-    #     order += 1
-
-    # shape   = [ 1,1,0,0 ]
-    # frex    = [ 0, fcutoff, fcutoff+fcutoff*transw, srate/2 ]
-
-    # filtkern = scipy.signal.firls(order,frex,shape,fs=srate)
-
-    # respi_filt = scipy.signal.filtfilt(filtkern,1,respi)
 
     #### filter respi physio
     respi_filt = physio.preprocess(respi, srate, band=25., btype='lowpass', ftype='bessel', order=5, normalize=False)
@@ -222,16 +315,7 @@ def respi_preproc(raw_aux):
         plt.xlim(0,60)
         plt.show()
 
-
-    #### replace respi 
-    data = raw_aux.get_data()
-    data[0,:] = respi_filt
-    raw_aux._data = data
-
-    #### verif
-    #plt.plot(raw_aux.get_data()[0,:]),plt.show()
-
-    return raw_aux
+    return respi_filt
 
 
 
@@ -253,7 +337,7 @@ def respi_preproc(raw_aux):
 def compare_pre_post(data_pre, data_post, srate, chan_name):
 
     # compare before after
-    nchan_i = chan_list_eeg.index(chan_name)
+    nchan_i = np.where(chan_list_eeg == chan_name)[0][0]
     x_pre = data_pre[nchan_i,:]
     x_post = data_post[nchan_i,:]
     time = np.arange(x_pre.shape[0]) / srate
@@ -293,9 +377,9 @@ def compare_pre_post(data_pre, data_post, srate, chan_name):
 ################################
 
 #new_ref = prep_step['reref']['params']
-def reref_eeg(raw_data, raw_info, new_ref):
+def reref_eeg(raw_data, info_eeg, new_ref):
 
-    raw_eeg_reref = mne.io.RawArray(raw_data, raw_info)
+    raw_eeg_reref = mne.io.RawArray(raw_data, info_eeg)
     raw_eeg_reref, refdata = mne.set_eeg_reference(raw_eeg_reref, ref_channels=new_ref)
 
     if debug == True :
@@ -310,25 +394,24 @@ def reref_eeg(raw_data, raw_info, new_ref):
 
 
 
-def mean_centered(raw_data):
+def detrend_mean_centered(raw_data):
         
     # mean centered
-    data_mc = np.zeros((np.size(raw_data,0),np.size(raw_data,1)))
-    for chan in range(np.size(raw_data,0)):
-        data_mc[chan,:] = raw_data[chan,:] - np.mean(raw_data[chan,:])
-        #### no detrend to keep low derivation
-        #data_mc[chan,:] = scipy.signal.detrend(data_mc[chan,:]) 
+    data_mc = np.zeros(raw_data.shape)
+    for chan_i in range(np.size(raw_data,0)):
+        data_mc[chan_i,:] = scipy.signal.detrend(raw_data[chan_i,:], type='linear') 
+        data_mc[chan_i,:] = data_mc[chan_i,:] - np.mean(data_mc[chan_i,:])
 
     return data_mc
 
 
 
 
-def line_noise_removing(raw_data, raw_info):
+def line_noise_removing(data_eeg, info_eeg):
 
     linenoise_freq = [50, 100, 150]
 
-    raw_eeg_line_noise_removing = mne.io.RawArray(raw_data, raw_info)
+    raw_eeg_line_noise_removing = mne.io.RawArray(data_eeg, info_eeg)
 
     raw_eeg_line_noise_removing.notch_filter(linenoise_freq, verbose='critical')
     
@@ -340,7 +423,7 @@ def line_noise_removing(raw_data, raw_info):
 
 
 
-def filter(raw_data, raw_info, h_freq, l_freq):
+def filter(raw_data, info_eeg, h_freq, l_freq):
 
     #filter_length = int(srate*10) # give sec
     filter_length = 'auto'
@@ -350,7 +433,7 @@ def filter(raw_data, raw_info, h_freq, l_freq):
         flim = (0.1, srate / 2.)
         mne.viz.plot_filter(h, srate, freq=None, gain=None, title=None, flim=flim, fscale='log')
 
-    raw_eeg_filter = mne.io.RawArray(raw_data, raw_info)
+    raw_eeg_filter = mne.io.RawArray(raw_data, info_eeg)
 
     raw_eeg_filter = raw_eeg_filter.filter(l_freq, h_freq, filter_length=filter_length, method='fir', phase='zero-double', fir_window='hamming', fir_design='firwin2', verbose='critical')
     data_filtered = raw_eeg_filter.get_data()
@@ -366,14 +449,14 @@ def filter(raw_data, raw_info, h_freq, l_freq):
 
 
 
-def ICA_computation(raw_data, raw_info):
+def ICA_computation(data_eeg, info_eeg):
 
     # n_components = np.size(raw.get_data(),0) # if int, use only the first n_components PCA components to compute the ICA decomposition
-    n_components = 15
+    n_components = 20
     random_state = 27
     method = 'fastica'
 
-    raw_eeg_ica = mne.io.RawArray(raw_data, raw_info)
+    raw_eeg_ica = mne.io.RawArray(data_eeg, info_eeg)
 
     ica = mne.preprocessing.ICA(n_components=n_components, random_state=random_state, method=method)
 
@@ -397,7 +480,7 @@ def ICA_computation(raw_data, raw_info):
     if debug == True :
 
         # compare before after
-        compare_pre_post(data_pre=raw_data, data_post=raw_ICA_export, srate=srate, chan_name='C3')
+        compare_pre_post(data_pre=data_eeg, data_post=raw_ICA_export, srate=srate, chan_name='C3')
 
         duration = .5
         n_chan = 10
@@ -440,258 +523,82 @@ def csd_computation(raw):
 
 
 
-#sujet = sujet_list[0]
-def preprocessing_ieeg(sujet):
 
+def preprocessing_eeg(data_eeg, info_eeg, prep_step):
 
-    ######## VIZU ######## 
-    if debug:
-        plt.plot(zscore(_respi))
-        plt.show()
 
     ######## PREPROC ########
     print('#### PREPROCESSING ####', flush=True)
 
-    raw_init = raw_eeg.copy()
-    raw_info = 
+    # data_init = data_eeg.copy()
+    # data_eeg = data_init.copy()
 
     #### Execute preprocessing
 
     if prep_step['reref']['execute']:
         print('reref', flush=True)
-        raw_post = reref_eeg(raw_data, raw_info, prep_step['reref']['params'])
-        #compare_pre_post(data_pre=raw_data, data_post=raw_post, srate=srate, chan_name='C3')
-        raw_data = raw_post
+        data_post = reref_eeg(data_eeg, info_eeg, prep_step['reref']['params'])
+        #compare_pre_post(data_pre=data_init, data_post=data_post, srate=srate, chan_name='FC5')
+        data_eeg = data_post
 
 
-    if prep_step['mean_centered']['execute']:
-        print('mean_centered', flush=True)
-        raw_post = mean_centered(raw_data)
-        #compare_pre_post(data_pre=raw_data, data_post=raw_post, srate=srate, chan_name='C3')
-        raw_data = raw_post
+    if prep_step['detrend_mean_centered']['execute']:
+        print('detrend_mean_centered', flush=True)
+        data_post = detrend_mean_centered(data_eeg)
+        #compare_pre_post(data_pre=data_init, data_post=data_post, srate=srate, chan_name='Fz')
+        data_eeg = data_post
 
 
     if prep_step['line_noise_removing']['execute']:
         print('line_noise_removing', flush=True)
-        raw_post = line_noise_removing(raw_data, raw_info)
-        #compare_pre_post(data_pre=raw_data, data_post=raw_post, srate=srate, chan_name='C3')
-        raw_data = raw_post
+        data_post = line_noise_removing(data_eeg, info_eeg)
+        #compare_pre_post(data_pre=data_init, data_post=data_post, srate=srate, chan_name='C3')
+        data_eeg = data_post
 
 
     if prep_step['high_pass']['execute']:
         print('high_pass', flush=True)
         h_freq = prep_step['high_pass']['params']['h_freq']
         l_freq = prep_step['high_pass']['params']['l_freq']
-        raw_post = filter(raw_data, raw_info, h_freq, l_freq)
-        #compare_pre_post(data_pre=raw_data, data_post=raw_post, srate=srate, chan_name='C3')
-        raw_data = raw_post
+        data_post = filter(data_eeg, info_eeg, h_freq, l_freq)
+        #compare_pre_post(data_pre=data_init, data_post=data_post, srate=srate, chan_name='C3')
+        data_eeg = data_post
 
 
     if prep_step['low_pass']['execute']:
         print('low_pass', flush=True)
         h_freq = prep_step['high_pass']['params']['h_freq']
         l_freq = prep_step['high_pass']['params']['l_freq']
-        raw_post = filter(raw_data, raw_info, h_freq, l_freq)
-        #compare_pre_post(data_pre=raw_data, data_post=raw_post, srate=srate, chan_name='C3')
-        raw_data = raw_post
+        data_post = filter(data_eeg, info_eeg, h_freq, l_freq)
+        #compare_pre_post(data_pre=data_init, data_post=data_post, srate=srate, chan_name='C3')
+        data_eeg = data_post
 
     if prep_step['csd_computation']['execute']:
         print('csd_computation', flush=True)
-        raw_post = csd_computation(raw_data)
-        #compare_pre_post(data_pre=raw_data, data_post=raw_post, srate=srate, chan_name='C3')
-        raw_data = raw_post
+        data_post = csd_computation(data_eeg)
+        #compare_pre_post(data_pre=data_init, data_post=data_post, srate=srate, chan_name='C3')
+        data_eeg = data_post
 
     if prep_step['ICA_computation']['execute']:
         print('ICA_computation', flush=True)
-        raw_post = ICA_computation(raw_data, raw_info)
-        #compare_pre_post(data_pre=raw_data, data_post=raw_post, srate=srate, chan_name='C3')
-        raw_data = raw_post
+        data_post = ICA_computation(data_eeg, info_eeg)
+        #compare_pre_post(data_pre=data_init, data_post=data_post, srate=srate, chan_name='C3')
+        data_eeg = data_post
 
 
     if prep_step['average_reref']['execute']:
         print('average_reref', flush=True)
-        raw_post = average_reref(raw_data)
-        #compare_pre_post(data_pre=raw_data, data_post=raw_post, srate=srate, chan_name='C3')
-        raw_data = raw_post
+        data_post = average_reref(data_eeg)
+        #compare_pre_post(data_pre=data_init, data_post=data_post, srate=srate, chan_name='C3')
+        data_eeg = data_post
 
-    #compare_pre_post(data_pre=raw_init, data_post=raw_data, srate=srate, chan_name='C3')
+    #compare_pre_post(data_pre=data_init, data_post=data_eeg, srate=srate, chan_name='C3')
 
-    #### export mne raw
-    raw_export_preproc = mne.io.RawArray(raw_data, raw_info)
-
-    return raw_export_preproc
+    return data_eeg
 
 
 
 
-
-
-################################
-######## VIEWER ########
-################################
-
-#data, data_aux = raw_eeg.get_data(), raw_aux.get_data()
-def view_data(data, data_aux):
-
-    chan_selection_list = [['Fp1', 'Fz', 'F3', 'F7', 'FT9', 'FC5', 'FC1', 'C3', 'T7', 'TP9', 'CP5', 'CP1', 'Pz', 'P3', 'P7', 'O1'],
-                           ['Oz', 'O2', 'P4', 'P8', 'TP10', 'CP6', 'CP2', 'Cz', 'C4', 'T8', 'FT10', 'FC6', 'FC2', 'F4', 'F8', 'Fp2']]
-    
-    #select_chanlist_i = 0
-    for select_chanlist_i in range(2):
-
-        chan_i_selected = [chan_list_eeg.index(chan) for chan in chan_selection_list[select_chanlist_i]]
-
-        data_sel = data[chan_i_selected,:]
-
-        trig = pd.read_excel(os.path.join(path_prep, sujet, 'info', f"{sujet}_{session_i}_trig.xlsx")).drop(columns=['Unnamed: 0'])
-
-        #### downsample
-        print('resample')
-        srate_downsample = 50
-
-        time_vec = np.linspace(0,data_sel.shape[-1],data_sel.shape[-1])/srate
-        time_vec_resample = np.linspace(0,data_sel.shape[-1],int(data_sel.shape[-1] * (srate_downsample / srate)))/srate
-
-        data_resampled = np.zeros((data_sel.shape[0], time_vec_resample.shape[0]))
-        data_resampled_aux = np.zeros((data_aux.shape[0], time_vec_resample.shape[0]))
-
-        for chan_i in range(data_sel.shape[0]):
-            f = scipy.interpolate.interp1d(time_vec, data_sel[chan_i,:], kind='quadratic', fill_value="extrapolate")
-            data_resampled[chan_i,:] = f(time_vec_resample)
-
-        for chan_i in range(data_aux.shape[0]):
-            f = scipy.interpolate.interp1d(time_vec, data_aux[chan_i,:], kind='quadratic', fill_value="extrapolate")
-            data_resampled_aux[chan_i,:] = f(time_vec_resample)
-
-        trig_data = {'start' : [], 'stop' : []}
-
-        for cond_i in conditions:
-            _start = [i for i in trig.query(f"name == '{cond_i}'")['time'].values[0][1:-1].split(' ') if len(i) != 0]
-            _start = int(_start[0])/srate
-            _stop = [i for i in trig.query(f"name == '{cond_i}'")['time'].values[0][1:-1].split(' ') if len(i) != 0]
-            _stop = int(_stop[1])/srate
-            trig_data['start'].append(_start)
-            trig_data['stop'].append(_stop)
-
-        trig = pd.DataFrame(trig_data)
-
-        respi = data_resampled_aux[-1,:]
-        ecg = data_resampled_aux[-2,:]
-
-        print('plot')
-
-        fig, ax = plt.subplots()
-
-        ax.plot(time_vec_resample, zscore(respi)+1, label='respi')
-        ax.plot(time_vec_resample, zscore(ecg), label='ecg')
-
-        for chan_i, chan in enumerate(chan_selection_list[select_chanlist_i]):
-        
-            x = data_resampled[chan_i,:]
-            ax.plot(time_vec_resample, zscore(x)+(chan_i)+2, label=chan)
-
-        ax.vlines(trig['start'].values, ymin=zscore(data_resampled[0,:]).min(), ymax=(zscore(x)+(chan_i)).max(), colors='g', label='start')
-        ax.vlines(trig['stop'].values, ymin=zscore(data_resampled[0,:]).min(), ymax=(zscore(x)+(chan_i)).max(), colors='r', label='stop')
-        
-        plt.legend()
-        handles, labels = ax.get_legend_handles_labels()
-        ax.legend(reversed(handles), reversed(labels), loc='upper left')  # reverse to keep order consistent
-
-        plt.show()
-
-
-  
-
-
-
-
-
-################################
-######## CHOP & SAVE ########
-################################
-
-#band_preproc, export_info = 'wb', True
-def chop_save_trc(raw_to_save, raw_aux, trig, ecg_events_time, band_preproc, session_i, export_info):
-
-    print('#### SAVE ####', flush=True)
-    
-    #### save alldata + stim chan
-    chan_list_eeg = raw_to_save.info['ch_names']
-    chan_list_aux = raw_aux.info['ch_names']
-
-    data_all = np.vstack(( raw_to_save.get_data(), raw_aux.get_data(), np.zeros(( raw_aux.get_data().shape[1] )) ))
-    chan_list_all = chan_list_eeg + chan_list_aux + ['ECG_cR']
-
-    ch_types = ['seeg'] * (len(chan_list_all)-4) + ['misc'] * 4
-    srate = raw_to_save.info['sfreq'] 
-    info = mne.create_info(chan_list_all, srate, ch_types=ch_types)
-    raw_all_to_save = mne.io.RawArray(data_all, info)
-
-    del data_all
-
-    #### save chan_list
-    os.chdir(os.path.join(path_anatomy, sujet))
-    keep_plot_textfile = open(sujet + "_chanlist.txt", "w")
-    for element in chan_list_all[:-4]:
-        keep_plot_textfile.write(element + "\n")
-    keep_plot_textfile.close()
-
-    #### add cR events
-    event_cR = np.zeros((len(ecg_events_time),3))
-    for cR in range(len(ecg_events_time)):
-        event_cR[cR, 0] = ecg_events_time[cR]
-        event_cR[cR, 2] = 10
-
-    raw_all_to_save.add_events(event_cR, stim_channel='ECG_cR', replace=True)
-    raw_all_to_save.info['ch_names']
-
-    #### prepare trig
-    trig_df = pd.DataFrame({'name' : trig.keys(), 'time' : trig.values()}, columns=['name', 'time'])
-
-    os.chdir(os.path.join(path_prep, sujet, 'sections'))
-
-    #### save all cond
-    odor_code = odor_order[sujet][f'ses0{session_i+2}']
-    raw_all_to_save.save(f'{sujet}_{odor_code}_allcond_{band_preproc}.fif')
-
-    #### save every cond
-    #cond = conditions_allsubjects[0]
-    for cond in conditions:
-
-        raw_chunk = raw_all_to_save.copy()
-        raw_chunk.crop( tmin = trig_df.query(f"name == '{cond}'")['time'].values[0][0]/srate , tmax= trig_df.query(f"name == '{cond}'")['time'].values[0][1]/srate )
-
-        raw_chunk.save(f'{sujet}_{odor_code}_{cond}_{band_preproc}.fif')
-
-        del raw_chunk
-
-        #### verif respi
-        if debug:
-            srate = raw_aux.info['sfreq']
-            nwind = int(10*srate)
-            nfft = nwind
-            noverlap = np.round(nwind/2)
-            hannw = scipy.signal.windows.hann(nwind)
-            hzPxx, Pxx = scipy.signal.welch(raw_chunk._data[-2,:],fs=srate,window=hannw,nperseg=nwind,noverlap=noverlap,nfft=nfft)
-            plt.plot(hzPxx, Pxx, label='respi')
-            plt.title(cond)
-            plt.legend()
-            plt.xlim(0,1)
-            plt.show()
-
-    if export_info == True :
-    
-        #### export trig, count_session, cR
-        os.chdir(os.path.join(path_prep, sujet, 'info'))
-        
-        trig_df.to_excel(f'{sujet}_{session_i}_trig.xlsx')
-
-        cR = pd.DataFrame(ecg_events_time, columns=['cR_time'])
-        cR.to_excel(sujet +'_cR_time.xlsx')
-
-    del raw_all_to_save
-
-    return 
 
 
 
@@ -836,7 +743,7 @@ def compute_artifact_features(inds, srate):
 
 
 #data = data[16,:]
-def detect_movement_artifacts(data, srate, n_chan_artifacted=5, n_deviations=5, low_freq=40 , high_freq=150, wsize=1, step=0.2):
+def detect_movement_artifacts(data, srate, n_chan_artifacted=5, n_deviations=5, low_freq=40, high_freq=150, wsize=1, step=0.2):
     
     eeg_filt = iirfilt(data, srate, low_freq, high_freq, ftype='bessel', order=2, axis=1)
 
@@ -856,6 +763,11 @@ def detect_movement_artifacts(data, srate, n_chan_artifacted=5, n_deviations=5, 
 
         compress_chans = masks.sum(axis = 0)
         inds = detect_cross(compress_chans, n_chan_artifacted+0.5)
+
+        if type(inds) == type(None):
+            print('none')
+            return None
+
         artifacts = compute_artifact_features(inds, srate)
 
     else:
@@ -868,6 +780,10 @@ def detect_movement_artifacts(data, srate, n_chan_artifacted=5, n_deviations=5, 
 
         compress_chans = masks*1
         inds = detect_cross(masks, 0.5)
+
+        if inds == None:
+            return None
+        
         artifacts = compute_artifact_features(inds, srate)
 
     return artifacts
@@ -933,124 +849,18 @@ def insert_noise(sig, srate, chan_artifacts, freq_min=30., margin_s=0.2, seed=No
 
 
 
-
-
-
-
-
-#raw = raw_preproc_wb 
-def remove_artifacts(raw, session_i, srate, trig):
-
-    data = raw.get_data()
+#data = data_preproc 
+def remove_artifacts(data, srate):
 
     #### detect on all chan
     print('#### ARTIFACT DETECTION ALLCHAN ####', flush=True)
-    artifacts_raw = detect_movement_artifacts(data, srate, n_chan_artifacted=5, n_deviations=5, low_freq=40 , high_freq=150, wsize=1, step=0.2)
-    artifacts_mask = np.zeros((artifacts_raw.shape[0]), dtype='bool')
-
-    #### exclude artifact in intertrial on all chan
-    #cond = 'FR_CV_1'
-    for cond in conditions:
-
-        start, stop = trig[cond][0], trig[cond][1]
-        mask_include = (artifacts_raw['start_ind'].values >= start) & (artifacts_raw['stop_ind'].values <= stop)
-        artifacts_mask = np.bitwise_or(artifacts_mask, mask_include)
-
-    artifacts = artifacts_raw[artifacts_mask]
-
-    #### add artifacts manualy if needed
-    if len(dict_artifacts_sujet[sujet][f'ses0{session_i+2}']['start']) != 0:
-
-        artifact_add_manual_dict = {}
-        for col in artifacts.columns:
-            artifact_add_manual_dict[col] = []
-
-        for artifact_i, artifact_val in enumerate(dict_artifacts_sujet[sujet][f'ses0{session_i+2}']['start']):
-
-            artifact_add_manual_dict['start_ind'].append(int(artifact_val))
-            artifact_add_manual_dict['stop_ind'].append(int(dict_artifacts_sujet[sujet][f'ses0{session_i+2}']['stop'][artifact_i]))
-            artifact_add_manual_dict['start_t'].append(artifact_val/srate)
-            artifact_add_manual_dict['stop_t'].append(dict_artifacts_sujet[sujet][f'ses0{session_i+2}']['stop'][artifact_i]/srate)
-            artifact_add_manual_dict['duration'].append(dict_artifacts_sujet[sujet][f'ses0{session_i+2}']['stop'][artifact_i]/srate - artifact_val/srate)
-
-        artifact_all_manual = pd.DataFrame(artifact_add_manual_dict)
-
-        artifacts = pd.concat([artifacts, artifact_all_manual]).sort_values('start_ind')
-
-        artifacts = artifacts.reset_index(drop=True)
-
-        artifacts_clean = artifacts.copy()
-
-        #### clean if overlap
-        rectification_i = 0
-        for start_i, start_val in enumerate(artifacts_clean['start_ind'].values):
-            
-            start_i -= rectification_i
-
-            if start_i == artifacts_clean['start_ind'].values.shape[0]-1:
-                break
-
-            if artifacts_clean['stop_ind'].values[start_i] >= artifacts_clean['start_ind'].values[start_i+1]:
-
-                row_del_i = np.arange(start_i+1, (artifacts_clean['stop_ind'] <= artifacts_clean['stop_ind'].values[start_i]).sum())
-
-                artifacts_clean = artifacts_clean.drop(index=row_del_i).reset_index().drop(columns='index')
-
-                rectification_i += row_del_i.shape[0]
-
-        artifacts = artifacts_clean.copy()
-
-    if artifacts.shape[0] == 0:
-
-        return raw
-
-    if debug:
-
-        sig = data[0,:]
-        plt.plot(data[0,:])
-        plt.plot(data[15,:])
-        plt.plot(data[30,:])
-        plt.vlines(artifacts['start_ind'].values, ymin=sig.min(), ymax=sig.max(), color='g', label='start')
-        plt.vlines(artifacts['stop_ind'].values, ymin=sig.min(), ymax=sig.max(), color='r', label='stop')
-        for cond in conditions:
-            plt.vlines(trig[cond][0], ymin=sig.min(), ymax=sig.max(), color='k', label='start', linewidth=2)
-            plt.vlines(trig[cond][1], ymin=sig.min(), ymax=sig.max(), color='k', linestyle='dashed', label='stop', linewidth=2)
-        plt.legend()
-        plt.title(f"{sujet} : ses0{session_i+2} {odor_code}")
-        plt.show()
-
-        sig = data[0,:]
-        plt.plot(data[0,:])
-        plt.plot(data[15,:])
-        plt.plot(data[30,:])
-        plt.plot(sig)
-        plt.vlines(artifacts_clean['start_ind'].values, ymin=sig.min(), ymax=sig.max(), color='g', label='start')
-        plt.vlines(artifacts_clean['stop_ind'].values, ymin=sig.min(), ymax=sig.max(), color='r', label='stop')
-        for cond in conditions:
-            plt.vlines(trig[cond][0], ymin=sig.min(), ymax=sig.max(), color='k', label='start', linewidth=2)
-            plt.vlines(trig[cond][1], ymin=sig.min(), ymax=sig.max(), color='k', linestyle='dashed', label='stop', linewidth=2)
-        plt.legend()
-        plt.show()
-
-        sig_artifact = np.array([])
-        sig_artifact_starts = np.array([])
-        sig_append_i = 0
-        min_max_artifacts = np.array([])
-        len_artifacts = np.array([])
-
-        for start, stop in zip(artifacts['start_ind'], artifacts['stop_ind']):
-
-            sig_append = sig[start:stop] - sig[start:stop].mean()
-            sig_artifact = np.append(sig_artifact, sig_append)
-            sig_append_i += sig_append.shape[0]
-            sig_artifact_starts = np.append(sig_artifact_starts, sig_append_i)
-            min_max_artifacts = np.append(min_max_artifacts, np.abs(sig_append.max() - sig_append.min()))
-            len_artifacts = np.append(len_artifacts, sig_artifact.shape[0])
-
-        plt.plot(sig_artifact)
-        plt.vlines(sig_artifact_starts, ymin=sig_artifact.min(), ymax=sig_artifact.max(), color='r')
-        plt.show()
-
+    artifacts = detect_movement_artifacts(data, srate, n_chan_artifacted=5, n_deviations=5, low_freq=40 , high_freq=150, wsize=1, step=0.2)
+    
+    if type(artifacts) == type(None):
+        print("NO ARTIFACT FOUND")
+        data_corrected = data.copy()
+        return data_corrected
+    
     #### correct on all chan
     print('#### ARTIFACT CORRECTION ALLCHAN ####', flush=True)
     data_corrected = data.copy()
@@ -1065,11 +875,8 @@ def remove_artifacts(raw, session_i, srate, trig):
 
         plt.plot(data[chan_i,:], label='raw')
         plt.plot(data_corrected[chan_i,:], label='corrected')
-        plt.vlines(artifacts['start_ind'].values, ymin=sig.min(), ymax=sig.max(), color='r', label='start')
-        plt.vlines(artifacts['stop_ind'].values, ymin=sig.min(), ymax=sig.max(), color='g', label='stop')
-        for cond in conditions:
-            plt.vlines(trig[cond][0], ymin=sig.min(), ymax=sig.max(), color='k', label='start', linewidth=2)
-            plt.vlines(trig[cond][1], ymin=sig.min(), ymax=sig.max(), color='k', linestyle='dashed', label='stop', linewidth=2)
+        plt.vlines(artifacts['start_ind'].values, ymin=data[chan_i,:].min(), ymax=data[chan_i,:].max(), color='r', label='start')
+        plt.vlines(artifacts['stop_ind'].values, ymin=data[chan_i,:].min(), ymax=data[chan_i,:].max(), color='g', label='stop')
         plt.legend()
         plt.show()
 
@@ -1082,11 +889,6 @@ def remove_artifacts(raw, session_i, srate, trig):
             ax.plot(zscore(data[chan_i,:])+3*chan_i, label=f"raw : {chan_name}")
             ax.plot(zscore(data_corrected[chan_i,:])+3*chan_i, label=f"correct raw : {chan_name}")
 
-        for cond in conditions:
-
-            plt.vlines(trig[cond][0], ymin=0, ymax=3*chan_i, color='k', label='start', linewidth=2)
-            plt.vlines(trig[cond][1], ymin=0, ymax=3*chan_i, color='k', linestyle='dashed', label='stop', linewidth=2)
-
         plt.vlines(artifacts['start_ind'].values, ymin=0, ymax=3*chan_i, color='r', label='start')
         plt.vlines(artifacts['stop_ind'].values, ymin=0, ymax=3*chan_i, color='r', label='stop')
         
@@ -1096,58 +898,7 @@ def remove_artifacts(raw, session_i, srate, trig):
 
         plt.show()
 
-    #### inject corrected data
-    raw_clean = raw.copy()
-    for chan_i, chan_name in enumerate(chan_list_eeg):
-        raw_clean[chan_i,:] = data_corrected[chan_i,:]
-
-    del data_corrected, data, raw
-
-    return raw_clean
-
-
-
-
-#raw = raw_preproc_wb 
-def remove_artifacts_everychan(raw, srate, trig):
-
-    data = raw.get_data()
-    data_corrected = data.copy()
-
-    print('#### ARTIFACT DETECTION ALLCHAN ####', flush=True)
-
-    #### detect on all chan
-    for chan_i, chan in enumerate(chan_list_eeg):
-        
-        print_advancement(chan_i, len(chan_list_eeg), [25, 50, 75])
-        artifacts_raw = detect_movement_artifacts(data[chan_i,:], srate, n_chan_artifacted=1, n_deviations=5, low_freq=40 , high_freq=150, wsize=1, step=0.2)
-        artifacts_mask = np.zeros((artifacts_raw.shape[0]), dtype='bool')
-
-        #### exclude artifact in intertrial on all chan
-        #cond = 'FR_CV_1'
-        for cond in conditions:
-
-            start, stop = trig[cond][0], trig[cond][1]
-            mask_include = (artifacts_raw['start_ind'].values >= start) & (artifacts_raw['stop_ind'].values <= stop)
-            artifacts_mask = np.bitwise_or(artifacts_mask, mask_include)
-
-        artifacts = artifacts_raw[artifacts_mask]
-
-        if artifacts.shape[0] == 0:
-
-            continue
-
-        data_corrected[chan_i,:] = insert_noise(data[chan_i,:], srate, artifacts, freq_min=30., margin_s=0.2, seed=None)
-
-    #### inject corrected data
-    raw_clean = raw.copy()
-    for chan_i, chan_name in enumerate(chan_list_eeg):
-        raw_clean[chan_i,:] = data_corrected[chan_i,:]
-
-    del data_corrected, data, raw
-
-    return raw_clean
-
+    return data_corrected
 
 
 
@@ -1171,6 +922,10 @@ def remove_artifacts_everychan(raw, srate, trig):
 
 if __name__== '__main__':
 
+    ########################################
+    ######## GENERATE PREPROC FILES ########
+    ########################################
+
     #sujet = sujet_list[0]
     for sujet in sujet_list:
 
@@ -1192,19 +947,18 @@ if __name__== '__main__':
             ######## PARAMS ########
             ########################
 
-            #sujet_list =   ['01CV_MW', '02CV_OL', '03CV_MC', '04CV_VS', '05CV_LS', '06CV_JS', '07CV_HC', '08CV_YB','09CV_ML', '10CV_CM', 
-            #               '11CV_CV', '12CV_VA', '13CV_LC', '14CV_PS', '15CV_SL', '16CV_JP', '17CV_LD', '18PH_JS',  '19PH_LP',  '20PH_MN',  
-            #               '21PH_SB',  '22PH_TH',  '23PH_VA',  '24PH_VS', '25IL_NM', '26IL_HM', '27IL_DG', '28IL_DM', '29IL_DR', '30IL_DJ', 
-            #               '31IL_DC', '32IL_AP', '33IL_SL', '34IL_LL', '35IL_VR', '36IL_LC', '37IL_NN', '38IL_MA', '39IL_LY', '40IL_BA', 
-            #               '41IL_CM', '42IL_EA', '43IL_LT']
+            # sujet_list = ['01NM_MW', '02NM_OL', '03NM_MC', '04NM_VS', '05NM_LS', '06NM_JS', '07NM_HC', '08NM_YB','09NM_ML', '10NM_CM', '11NM_CV', '12NM_VA', '13NM_LC', '14NM_PS', '15NM_SL', '16NM_JP', '17NM_LD',
+            #   '18PH_JS',  '19PH_LP',  '20PH_MN',  '21PH_SB',  '22PH_TH',  '23PH_VA',  '24PH_VS',
+            #   '25IL_NM', '26IL_HM', '27IL_DG', '28IL_DM', '29IL_DR', '30IL_DJ', '31IL_DC', '32IL_AP', '33IL_SL', '34IL_LL', '35IL_VR', '36IL_LC', '37IL_MA', '38IL_LY', '39IL_BA', '40IL_CM', '41IL_EA', '42IL_LT']
 
-            sujet = '01CV_MW'
+
+            # sujet = '04NM_VS'
 
             # cond_list = ['VS', 'CHARGE']
 
-            cond = 'VS'
+            # cond = 'CHARGE'
 
-            if os.path.exists(os.path.join(path_prep, f'{sujet}_VS.fif')):
+            if os.path.exists(os.path.join(path_prep, f'{sujet}_{cond}.fif')):
 
                 print(f"{sujet} ALREADY COMPTUED", flush=True)
                 continue
@@ -1217,17 +971,19 @@ if __name__== '__main__':
             ######## EXTRACT DATA ########
             ################################
 
-            _data_eeg, _respi, _chan_list_eeg = open_raw_data(sujet, cond)
+            #sujet, cond = sujet_list[0], 'VS'
+            data_eeg, respi, trig = open_raw_data(sujet, cond)
 
-            info = mne.create_info(ch_names=_chan_list_eeg, ch_types=['eeg']*_data_eeg.shape[0], sfreq=srate_g)
-            info.set_montage("standard_1020")
+            info_eeg = mne.create_info(ch_names=chan_list_eeg.tolist(), ch_types=['eeg']*data_eeg.shape[0], sfreq=srate)
+            info_eeg.set_montage("standard_1020")
 
             #### verif power
-            if debug == True:
-                raw_eeg = mne.io.Raw()
+            if debug:
+                raw_eeg = mne.io.RawArray(data_eeg,info_eeg)
+
                 mne.viz.plot_raw_psd(raw_eeg)
 
-                view_data(raw_eeg.get_data(), raw_aux.get_data())
+                view_data(data_eeg, respi)
 
             ################################
             ######## AUX PROCESSING ########
@@ -1235,97 +991,100 @@ if __name__== '__main__':
 
             #### verif ecg and respi orientation
             if debug:
-                _ecg = raw_aux.get_data()[-1]
-                plt.plot(_ecg)
+                plt.plot(respi)
                 plt.show()
 
-                _respi = raw_aux.get_data()[0]
-                plt.plot(_respi)
-                plt.show()
-
-            raw_aux, ecg_events_time = ecg_detection(raw_aux)
-
-            raw_aux = respi_preproc(raw_aux)
-
-            if debug == True:
-                #### verif ECG
-                chan_list_aux = raw_aux.info['ch_names']
-                ecg_i = chan_list_aux.index('ECG')
-                ecg = raw_aux.get_data()[ecg_i,:]
-                plt.plot(ecg)
-                plt.vlines(ecg_events_time, ymin=min(ecg), ymax=max(ecg), colors='k')
-                trig_values = []
-                for trig_i in trig.values():
-                    [trig_values.append(i) for i in trig_i]
-                plt.vlines(trig_values, ymin=min(ecg), ymax=max(ecg), colors='r', linewidth=3)
-
-                plt.legend()
-                plt.show()
-
-                #### add events if necessary
-                corrected = []
-                cR_init = trig['time'].values
-                ecg_events_corrected = np.hstack([cR_init, np.array(corrected)])
-
-                #### find an event to remove
-                around_to_find = 1000
-                value_to_find = 3265670    
-                ecg_cR_array = np.array(ecg_events_time) 
-                ecg_cR_array[ ( np.array(ecg_events_time) >= (value_to_find - around_to_find) ) & ( np.array(ecg_events_time) <= (value_to_find + around_to_find) ) ] 
-
-                #### verify add events
-                plt.plot(ecg)
-                plt.vlines(ecg_events_time, ymin=min(ecg), ymax=max(ecg), colors='k')
-                plt.vlines(ecg_events_corrected, ymin=min(ecg), ymax=max(ecg), colors='r', linewidth=3)
-                plt.legend()
-                plt.show()
+            respi = respi_preproc(respi)
+                
 
             ########################################################
             ######## PREPROCESSING & ARTIFACT CORRECTION ########
             ########################################################
 
-            raw_preproc_wb = preprocessing_ieeg(raw_eeg, prep_step_wb)
+            data_preproc = preprocessing_eeg(data_eeg, info_eeg, prep_step)
 
             if debug:
 
-                view_data(raw_preproc_wb.get_data(), raw_aux.get_data())
-                compare_pre_post(data_pre=raw_eeg.get_data(), data_post=raw_preproc_wb.get_data(), srate=srate, chan_name='C3')
+                view_data(data_preproc, respi)
+                compare_pre_post(data_pre=data_eeg, data_post=data_preproc, srate=srate, chan_name='C3')
 
-            raw_preproc_wb_data = ICA_computation(raw_preproc_wb.get_data(), raw_preproc_wb.info)
-            raw_preproc_wb = mne.io.RawArray(raw_preproc_wb_data, raw_preproc_wb.info)
+            # data_preproc = ICA_computation(data_preproc, info_eeg)
+            # data_preproc = mne.io.RawArray(data_preproc, info_eeg.info)
 
             if debug:
 
-                view_data(raw_preproc_wb.get_data(), raw_aux.get_data())
+                view_data(data_preproc, respi)
 
-            raw_preproc_wb = remove_artifacts_everychan(raw_preproc_wb, srate, trig)
-            raw_preproc_wb_clean = remove_artifacts(raw_preproc_wb, session_i, srate, trig)
+            data_preproc_clean = remove_artifacts(data_preproc, srate)
 
             ########################################
             ######## FINAL VIZUALISATION ########
             ########################################
 
-            if debug:
+            #### pre
+            fig_raw = view_data(data_eeg, respi, return_fig=True)
+            ####post
+            fig_post = view_data(data_preproc_clean, respi, return_fig=True)
+            #### for one chan
+            # compare_pre_post(data_pre=data_eeg, data_post=data_preproc_clean, srate=srate, chan_name='FC5')
 
-                #### pre
-                view_data(raw_eeg.get_data(), raw_aux.get_data())
-                ####post
-                view_data(raw_preproc_wb_clean.get_data(), raw_aux.get_data())
-                #### for one chan
-                compare_pre_post(data_pre=raw_eeg.get_data(), data_post=raw_preproc_wb_clean.get_data(), srate=srate, chan_name='Cz')
+            fig_raw.suptitle('raw')
+            fig_post.suptitle('preproc')
+
+            plt.show(block=True) 
 
             ################################
             ######## CHOP AND SAVE ########
             ################################
 
-            chop_save_trc(raw_preproc_wb_clean, raw_aux, trig, ecg_events_time, band_preproc='wb', session_i=session_i, export_info=True)
+            print('#### SAVE ####', flush=True)
+    
+            #### save alldata + stim chan
+            data_export = np.vstack((data_preproc_clean, respi))
 
-            del raw_preproc_wb
+            info_eeg_export = mne.create_info(ch_names=chan_list.tolist(), ch_types=['eeg']*data_eeg.shape[0] + ['misc'], sfreq=srate)
+            info_eeg_export.set_montage("standard_1020")
 
-            #### verif
-            if debug == True:
-                compare_pre_post(raw_eeg.get_data(), raw_preproc_wb_clean.get_data(), srate, 'C3')
-                view_data(raw_preproc_wb_clean.get_data(), raw_aux.get_data()) 
+            raw_export = mne.io.RawArray(data_export, info_eeg_export)
+
+            df_trig = pd.DataFrame({'trig' : ['inspi']*trig.shape[0], 'time' : trig})
+
+            os.chdir(path_prep)
+
+            #### save all cond
+            raw_export.save(f'{sujet}_{cond}.fif')
+                
+            df_trig.to_excel(f'{sujet}_{cond}_trig.xlsx')
+
+    ########################################
+    ######## AGGREGATES PREPROC ########
+    ########################################
+
+    time_vec = np.arange(0, section_time_general, 1/srate)
+
+    xr_dict_preproc = {'sujet' : sujet_list, 'cond' : cond_list, 'chan' : chan_list, 'time' : time_vec}
+    xr_data_preproc = np.zeros(( len(sujet_list), len(cond_list), chan_list.shape[0], time_vec.shape[0] ))
+
+    os.chdir(path_prep)
+
+    for sujet_i, sujet in enumerate(sujet_list):
+
+        print(sujet)
+
+        #cond = cond_list[0]
+        for cond_i, cond in enumerate(cond_list):
+
+            raw = mne.io.read_raw_fif(f"{sujet}_{cond}.fif")
+            xr_data_preproc[sujet_i, cond_i, :, :] = raw.get_data()
+
+    xr_preproc = xr.DataArray(data=xr_data_preproc, dims=xr_dict_preproc.keys(), coords=xr_dict_preproc.values())
+    xr_preproc.to_netcdf('alldata_preproc.nc')
+
+
+
+
+
+
 
 
 

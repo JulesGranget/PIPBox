@@ -355,82 +355,23 @@ def exclude_bad_cycles(respi, cycles_init, srate, exclusion_metrics='med', metri
 def load_respi_allcond_data(sujet, cycle_detection_params):
 
     #### load data
-    os.chdir(os.path.join(path_prep, sujet, 'sections'))
+    os.chdir(path_prep)
 
-    srate = get_params()['srate']
+    xr_respi = xr.open_dataarray('alldata_preproc.nc').loc[:, :, 'pression',:].drop_vars('chan')
 
-    raw_allcond = {}
-
-    for cond in conditions:
-
-        raw_allcond[cond] = {}
-
-        for odor_i in odor_list:
-
-            load_i = []
-            for session_i, session_name in enumerate(os.listdir()):
-                if session_name.find(cond) != -1 and session_name.find(odor_i) != -1 and (session_name.find('lf') != -1 or session_name.find('wb') != -1):
-                    load_i.append(session_i)
-                else:
-                    continue
-
-            load_name = [os.listdir()[i] for i in load_i][0]
-
-            load_data = mne.io.read_raw_fif(load_name, preload=True)
-            load_data = load_data.pick_channels(['PRESS']).get_data().reshape(-1)
-
-            raw_allcond[cond][odor_i] = load_data
-
-    #### extract zscore params
-    zscore_prms = {'mean' : {}, 'std' : {}}
-
-    #odor = odor_list[1]
-    for odor in odor_list:
-
-        respi_concat = []
-
-        #cond = 'MECA'
-        for cond in conditions:
-
-            resp_clean = physio.preprocess(raw_allcond[cond][odor_i], srate, band=25., btype='lowpass', ftype='bessel', order=5, normalize=False)
-            resp_clean_smooth = physio.smooth_signal(resp_clean, srate, win_shape='gaussian', sigma_ms=40.0)
-
-            respi_concat = np.concatenate((respi_concat, resp_clean_smooth), axis=0)
-
-        zscore_prms['mean'][odor] = np.array(respi_concat).mean()
-        zscore_prms['std'][odor] = np.array(respi_concat).std()
-
-    #### preproc respi
-    respi_allcond = {}
-
-    for cond in conditions:
-
-        respi_allcond[cond] = {}
-
-        for odor_i in odor_list:
-        
-            resp_clean = physio.preprocess(raw_allcond[cond][odor_i], srate, band=25., btype='lowpass', ftype='bessel', order=5, normalize=False)
-            resp_clean_smooth = physio.smooth_signal(resp_clean, srate, win_shape='gaussian', sigma_ms=40.0)
-
-            resp_clean_smooth = (resp_clean_smooth - zscore_prms['mean'][odor]) / zscore_prms['std'][odor]
-
-            respi_allcond[cond][odor_i] = resp_clean_smooth
-
-    #### detect
     respfeatures_allcond = {}
 
-    #cond = 'CO2'
-    for cond in conditions:
+    for sujet in sujet_list:
 
-        respfeatures_allcond[cond] = {}
+        respfeatures_allcond[sujet] = {}
 
-        #odor_i = '-'
-        for odor_i in odor_list:
+        #cond = 'VS'
+        for cond in cond_list:
 
             # cycles = physio.detect_respiration_cycles(respi_allcond[cond][odor_i], srate, baseline_mode='median',
             #                                           baseline=None, epsilon_factor1=10, epsilon_factor2=5, inspiration_adjust_on_derivative=False)
-            cycles = detect_respiration_cycles(respi_allcond[cond][odor_i], srate, baseline_mode='median',
-                                                      baseline=None, epsilon_factor1=10, epsilon_factor2=5, inspiration_adjust_on_derivative=False)
+            cycles = detect_respiration_cycles(xr_respi.loc[sujet, cond, :].values, srate, baseline_mode='median',
+                                                        baseline=None, epsilon_factor1=10, epsilon_factor2=5, inspiration_adjust_on_derivative=False)
             
             if debug:
 
@@ -467,7 +408,7 @@ def load_respi_allcond_data(sujet, cycle_detection_params):
 
             #### get resp_features
             resp_features_i = physio.compute_respiration_cycle_features(respi_allcond[cond][odor_i], srate, cycles, baseline=None)
-    
+
             select_vec = np.ones((resp_features_i.index.shape[0]), dtype='int')
             select_vec[cycles_mask_keep] = 0
             resp_features_i.insert(resp_features_i.columns.shape[0], 'select', select_vec)
@@ -611,46 +552,15 @@ if __name__ == '__main__':
     ############################
 
     
-    #### whole protocole
-    sujet = '01PD'
-    sujet = '02MJ'
-    sujet = '03VN'
-    sujet = '04GB'
-    sujet = '05LV'
-    sujet = '06EF'
-    sujet = '07PB'
-    sujet = '08DM'
-    sujet = '09TA'
-    sujet = '10BH'
-    sujet = '11FA'
-    sujet = '12BD'
-    sujet = '13FP'
-    sujet = '14MD'
-    sujet = '15LG'
-    sujet = '16GM'
-    sujet = '17JR'
-    sujet = '18SE'
-    sujet = '19TM'
-    sujet = '20TY'
-    sujet = '21ZV'
-    sujet = '22DI'
-    sujet = '23LF'
-    sujet = '24TJ'
-    sujet = '25DF'
-    sujet = '26MN'
-    sujet = '27BD'
-    sujet = '28NT'
-    sujet = '29SC'
-    sujet = '30AR'
-    sujet = '31HJ'
-    sujet = '32CM'
-    sujet = '33MA'
+    # sujet_list = ['01NM_MW', '02NM_OL', '03NM_MC', '04NM_LS', '05NM_JS', '06NM_HC', '07NM_YB', '08NM_CM', '09NM_CV', '10NM_VA', '11NM_LC', '12NM_PS', '13NM_JP', '14NM_LD',
+    #           '15PH_JS',  '16PH_LP',  '17PH_MN',  '18PH_SB',  '19PH_TH',  '20PH_VA',  '21PH_VS',
+    #           '22IL_NM', '23IL_DG', '24IL_DM', '25IL_DJ', '26IL_DC', '27IL_AP', '28IL_SL', '29IL_LL', '30IL_VR', '31IL_LC', '32IL_MA', '33IL_LY', '34IL_BA', '35IL_CM', '36IL_EA', '37IL_LT']
+
+    sujet = '01NM_MW'
 
     for sujet in sujet_list:
 
-        print(f"#### #### ####")
-        print(f"#### {sujet} ####")
-        print(f"#### #### ####")
+        print(sujet)
 
         #### load data
         os.chdir(os.path.join(path_data, 'respi_detection'))
@@ -663,14 +573,8 @@ if __name__ == '__main__':
         
         if debug == True :
 
-            cond = 'FR_CV_1'
-            cond = 'FR_CV_2' 
-            cond = 'MECA' 
-            cond = 'CO2'
-            
-            odor_i = 'o'
-            odor_i = '-'
-            odor_i = '+'
+            cond = 'VS'
+            cond = 'CHARGE' 
 
             respfeatures_allcond[cond][odor_i][1].show()
             respfeatures_allcond[cond][odor_i][2].show()
