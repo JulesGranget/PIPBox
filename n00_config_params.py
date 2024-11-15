@@ -37,7 +37,7 @@ sujet_list_correspondance = {'NM_MW02' : '01NM_MW', 'NM_OL04' : '02NM_OL', 'NM_M
                              'NM_JP19' : '13NM_JP', 'NM_LD20' : '14NM_LD', 'PH_JS08' : '15PH_JS', 'PH_LP26' : '16PH_LP', 'PH_MN23' : '17PH_MN', 'PH_SB27' : '18PH_SB',
                              'PH_TH24' : '19PH_TH', 'PH_VA14' : '20PH_VA', 'PH_VS06' : '21PH_VS', 'IL_01NM' : '22IL_NM', 'IL_03DG' : '23IL_DG', 'IL_04DM' : '24IL_DM', 
                              'IL_06DJ' : '25IL_DJ', 'IL_07DC' : '26IL_DC', 'IL_08AP' : '27IL_AP', 'IL_09SL' : '28IL_SL', 'IL_10LL' : '29IL_LL', 'IL_11VR' : '30IL_VR', 
-                             'IL_12LC' : '31IL_LC', 'IL_13NN' : '32IL_MA', 'IL_15LY' : '33IL_LY', 'IL_16BA' : '34IL_BA', 'IL_17CM' : '35IL_CM', 'IL_18EA' : '36IL_EA', 'IL_19LT' : '37IL_LT'}
+                             'IL_12LC' : '31IL_LC', 'IL_14MA' : '32IL_MA', 'IL_15LY' : '33IL_LY', 'IL_16BA' : '34IL_BA', 'IL_17CM' : '35IL_CM', 'IL_18EA' : '36IL_EA', 'IL_19LT' : '37IL_LT'}
 
 chan_list_project_wise = {'COVEM_ITL': ['FC1', 'FC2', 'Cz', 'C2', 'CP1', 'CP2', 'EMG'],
                       'NORMATIVE' : ['Fp1', 'F7', 'F3', 'Fz', 'FC5', 'FC1', 'A1', 'T7', 'C3', 'Cz', 'TP9', 'CP5', 'CP1', 'P7', 'P3', 'Pz', 'Fp2', 'F4', 'F8', 'FC2', 'FC6', 'C4', 'T8', 'A2', 'CP2', 'CP6', 'TP10', 'P4', 'P8', 'O1', 'Oz', 'O2', 'Debit', 'Pression', 'EMG PS', 'ECG', 'FCz'], 
@@ -82,8 +82,15 @@ import platform
  
 PC_OS = platform.system()
 PC_ID = socket.gethostname()
+init_workdir = os.getcwd()
 
 if PC_ID == 'LAPTOP-EI7OSP7K':
+
+    try: 
+        os.chdir('N:\\')
+        teleworking = False
+    except:
+        teleworking = True 
 
     if teleworking:
 
@@ -165,6 +172,8 @@ path_precompute = os.path.join(path_general, 'Analyses', 'precompute')
 path_results = os.path.join(path_general, 'Analyses', 'results') 
 path_slurm = os.path.join(path_general, 'Script_slurm')
 
+os.chdir(init_workdir)
+
 #### slurm params
 mem_crnl_cluster = '10G'
 n_core_slurms = 10
@@ -195,8 +204,8 @@ sujet_respi_adjust = {
 
 cycle_detection_params = {
 'exclusion_metrics' : 'med',
-'metric_coeff_exclusion' : 3,
-'inspi_coeff_exclusion' : 2,
+'sum_coeff_exclusion' : 3,
+'time_coeff_exclusion' : 2,
 'respi_scale' : [0.1, 0.35], #Hz
 }
 

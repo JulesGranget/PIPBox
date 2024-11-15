@@ -17,16 +17,12 @@ debug = False
 
 
 
-
-
-
 ########################################
-######## PHYSIO TOOL DEBUGGED ########
+######## TO DELETE LATER ########
 ########################################
 
-
-#resp = respi_allcond[cond][odor_i]
-def detect_respiration_cycles(resp, srate, baseline_mode='manual', baseline=None, 
+#resp = respi
+def debugged_detect_respiration_cycles(resp, srate, baseline_mode='manual', baseline=None, 
                               epsilon_factor1=10, epsilon_factor2=5, inspiration_adjust_on_derivative=False):
     """
     Detect respiration cycles based on:
@@ -53,8 +49,7 @@ def detect_respiration_cycles(resp, srate, baseline_mode='manual', baseline=None
         with [index_inspi, index_expi, index_next_inspi]
     """
 
-    # baseline = get_respiration_baseline(resp, srate, baseline_mode=baseline_mode, baseline=baseline)
-    baseline = resp.mean()
+    baseline = physio.get_respiration_baseline(resp, srate, baseline_mode=baseline_mode, baseline=baseline)
 
     #~ q90 = np.quantile(resp, 0.90)
     q10 = np.quantile(resp, 0.10)
@@ -91,17 +86,17 @@ def detect_respiration_cycles(resp, srate, baseline_mode='manual', baseline=None
     ind_exp = ind_exp[keep]
 
     #~ import matplotlib.pyplot as plt
-    #~ fig, ax = plt.subplots()
-    #~ ax.plot(resp)
-    #~ ax.scatter(ind_insp_no_clean, resp[ind_insp_no_clean], color='m', marker='*', s=100)
-    #~ ax.scatter(ind_dw, resp[ind_dw], color='orange', marker='o', s=30)
-    #~ ax.scatter(ind_insp, resp[ind_insp], color='g', marker='o')
-    #~ ax.scatter(ind_exp, resp[ind_exp], color='r', marker='o')
-    #~ ax.axhline(baseline, color='r')
-    #~ ax.axhline(baseline_insp, color='g')
-    #~ ax.axhline(baseline_dw, color='orange')
-    #~ ax.axhline(q10, color='k')
-    #~ plt.show()
+    # fig, ax = plt.subplots()
+    # ax.plot(resp)
+    # ax.scatter(ind_insp_no_clean, resp[ind_insp_no_clean], color='m', marker='*', s=100)
+    # ax.scatter(ind_dw, resp[ind_dw], color='orange', marker='o', s=30)
+    # ax.scatter(ind_insp, resp[ind_insp], color='g', marker='o')
+    # ax.scatter(ind_exp, resp[ind_exp], color='r', marker='o')
+    # ax.axhline(baseline, color='r')
+    # ax.axhline(baseline_insp, color='g')
+    # ax.axhline(baseline_dw, color='orange')
+    # ax.axhline(q10, color='k')
+    # plt.show()
 
 
     if ind_insp.size == 0:
@@ -135,8 +130,7 @@ def detect_respiration_cycles(resp, srate, baseline_mode='manual', baseline=None
                     if np.any(mask):
                         ind_insp[i] = i0 + np.nonzero(mask)[0][-1]
 
-    if ind_exp.shape[0] != ind_insp[:-1].shape[0]:
-
+    if ind_insp[-1] >= ind_exp[-1] and ind_insp[-2] >= ind_exp[-1]:
         ind_insp = ind_insp[:-1]
     
     cycles = np.zeros((ind_insp.size - 1, 3), dtype='int64')
@@ -144,18 +138,7 @@ def detect_respiration_cycles(resp, srate, baseline_mode='manual', baseline=None
     cycles[:, 1] = ind_exp
     cycles[:, 2] = ind_insp[1:]
 
-    if debug:
-
-        plt.plot(resp)
-        plt.scatter(ind_insp[:-1], resp[ind_insp[:-1]], label='inspi')
-        plt.scatter(ind_exp, resp[ind_exp], label='expi')
-        plt.legend()
-        plt.show()
-
     return cycles
-
-
-
 
 
 
@@ -165,183 +148,213 @@ def detect_respiration_cycles(resp, srate, baseline_mode='manual', baseline=None
 ########################################
 
 
-#respi, cycles_init = respi_allcond[cond][odor_i], cycles
-def exclude_bad_cycles(respi, cycles_init, srate, exclusion_metrics='med', metric_coeff_exclusion=3, inspi_coeff_exclusion=2, respi_scale=[0.1, 0.35]):
 
-    next_inspi = cycles_init[:,-1]
+#cycles_init = cycles
+def exclude_bad_cycles(respi, cycles_init, srate, exclusion_coeff=1):
 
-    if debug:
 
-        inspi_starts_init = cycles_init[:,0]
-        fig, ax = plt.subplots()
-        ax.plot(respi)
-        ax.scatter(inspi_starts_init, respi[inspi_starts_init], color='g')
-        plt.show()
+    #### compute average durations and dispertion for inspi and expi together
+    all_inspi_expi = np.diff(cycles_init, axis=1).reshape(-1)
+    duration_med = int(np.median(all_inspi_expi))
+    duration_mad = int(np.median(np.abs(all_inspi_expi - duration_med)) / 0.6744897501960817)
 
-    #### exclude regarding inspi/expi diff
-    _diff = np.log(np.diff(cycles_init[:,:2], axis=1).reshape(-1))
+    #### compute average inspi/expi cycle for cross correlation
+    time_vec_mean_cycle = np.arange(-duration_med, duration_med)
+    cycle_average_inspi = np.zeros((cycles_init.shape[0], time_vec_mean_cycle.size))
+    cycle_average_expi = np.zeros((cycles_init.shape[0], time_vec_mean_cycle.size)) 
 
-    if debug:
-        plt.plot(np.arange(respi.shape[0])/srate, respi)
-        plt.show()
+    for _inspi_start_i, _inspi_start in enumerate(cycles_init[:,0]):
+        _start, _stop = _inspi_start - duration_med, _inspi_start + duration_med  
+        if _start < 0 or  _stop < 0 or _start > respi.size or _stop > respi.size:
+            continue
+        cycle_average_inspi[_inspi_start_i, :] = respi[_start:_stop]
 
-        plt.plot(zscore(_diff))
-        plt.plot(zscore(np.log(_diff)))
-        plt.title('inspi/expi diff')
-        plt.show()
+    for _expi_start_i, _expi_start in enumerate(cycles_init[:,1]):
+        _start, _stop = _expi_start - duration_med, _expi_start + duration_med  
+        if _start < 0 or _stop < 0 or _start > respi.size or _stop > respi.size:
+            continue
+        cycle_average_expi[_expi_start_i, :] = respi[_start:_stop]
 
-    if exclusion_metrics == 'med':
-        med, mad = physio.compute_median_mad(_diff)
-        metric_center, metric_dispersion = med, mad
+    sel_i_inspi = np.where(np.sum(cycle_average_inspi, axis=1) != 0)[0]
+    sel_i_expi = np.where(np.sum(cycle_average_expi, axis=1) != 0)[0]
 
-    if exclusion_metrics == 'mean':
-        metric_center, metric_dispersion = _diff.mean(), _diff.std()
-
-    if exclusion_metrics == 'mod':
-        med, mad = physio.compute_median_mad(_diff)
-        mod = physio.get_empirical_mode(_diff)
-        metric_center, metric_dispersion = mod, med
-
-    # inspi_time_excluded = _diff[(_diff < (metric_center - metric_dispersion*inspi_coeff_exclusion)) | (_diff > (metric_center + metric_dispersion*inspi_coeff_exclusion))]
-    inspi_time_excluded = _diff[(_diff < (metric_center - metric_dispersion*inspi_coeff_exclusion))]
-    inspi_time_included_i = [i for i, val in enumerate(_diff) if val not in inspi_time_excluded]
-    inspi_time_excluded_i = [i for i, val in enumerate(_diff) if val in inspi_time_excluded]
-
-    cycle_inspi_excluded_i = [i for i, val in enumerate(cycles_init[:,0]) if val in cycles_init[inspi_time_excluded_i][:,0]]
-
-    cycles = cycles_init[inspi_time_included_i,:2]
-    next_inspi = next_inspi[inspi_time_included_i]
-    inspi_starts = cycles[:,0]
+    cycle_average_inspi = np.median(cycle_average_inspi[sel_i_inspi, :], axis=0)
+    cycle_average_expi = np.median(cycle_average_expi[sel_i_expi, :], axis=0)
 
     if debug:
+        plt.plot(time_vec_mean_cycle/srate, cycle_average_inspi)
+        plt.plot(time_vec_mean_cycle/srate, cycle_average_expi)
+        plt.show()
 
-        inspi_starts_init = cycles_init[:,0]
-        fig, ax = plt.subplots()
-        ax.plot(respi)
-        ax.scatter(inspi_starts_init, respi[inspi_starts_init], color='g')
-        ax.scatter(inspi_starts_init[cycle_inspi_excluded_i], respi[inspi_starts_init[cycle_inspi_excluded_i]], color='k', marker='x', s=100)
+    #### cross correlate respi with average inspi/expi cycle and identify max
+    correlate_inspi = scipy.signal.correlate(respi, cycle_average_inspi, mode='same')
+    correlate_expi = scipy.signal.correlate(respi, cycle_average_expi, mode='same')
+    
+    peak_thresh_inspi = np.std(correlate_inspi)*0.5
+    cross_corr_inspi = scipy.signal.find_peaks(correlate_inspi, distance=duration_med, height=peak_thresh_inspi)[0]
 
-        ax2 = ax.twinx()
-        ax2.scatter(inspi_starts_init, _diff, color='r', label=exclusion_metrics)
-        ax2.axhline(metric_center, color='r')
-        ax2.axhline(metric_center - metric_dispersion*inspi_coeff_exclusion, color='r', linestyle='--')
-        ax2.axhline(metric_center + metric_dispersion*inspi_coeff_exclusion, color='r', linestyle='--')
-        plt.title('inspi/expi diff')
+    peak_thresh_expi = np.std(correlate_expi)*0.5
+    cross_corr_expi = scipy.signal.find_peaks(correlate_expi, distance=duration_med, height=peak_thresh_expi)[0]
+
+    if debug:
+        plt.plot(correlate_inspi)
+        plt.scatter(cross_corr_inspi, correlate_inspi[cross_corr_inspi], color='r')
+        plt.hlines(peak_thresh_expi, xmin=0, xmax=correlate_inspi.size, color='r')
+        plt.show()
+
+        respi_zscore = zscore(respi)
+        correlate_inspi_zscore = zscore(correlate_inspi)
+        correlate_expi_zscore = zscore(correlate_expi)
+
+        plt.plot(respi_zscore, label='respi')
+        plt.plot(correlate_inspi_zscore, label='cross_corr_inspi')
+        plt.plot(correlate_expi_zscore, label='cross_corr_expi')
+        plt.scatter(cross_corr_inspi, respi_zscore[cross_corr_inspi], color='r', label='cross_corr')
+        plt.scatter(cross_corr_expi, respi_zscore[cross_corr_expi], color='r')
+        plt.scatter(cycles_init[:,1], respi_zscore[cycles_init[:,1]], color='b', label='cycles_init')
+        plt.scatter(cycles_init[:,0], respi_zscore[cycles_init[:,0]], color='b')
         plt.legend()
         plt.show()
 
-    #### compute cycle metric
-    sums = np.zeros(inspi_starts.shape[0])
+    #### correct inspi/expi position based on cross correlation with dispertion coeff
+    exclusion_thresh = int(exclusion_coeff * duration_mad)
 
-    for cycle_i in range(inspi_starts.shape[0]):
-        if cycle_i == inspi_starts.shape[0]-1:
-            start_i, stop_i = inspi_starts[cycle_i], respi.shape[0]
+    inspi_corrected = []
+
+    for inspi_cross_corr_i, inspi_cross_corr in enumerate(cross_corr_inspi):
+
+        _up, _down = inspi_cross_corr + exclusion_thresh, inspi_cross_corr - exclusion_thresh
+        mask_thresh = (cycles_init[:,0] <= _up) & (cycles_init[:,0] >= _down)
+        if mask_thresh.sum() != 0:
+            _inspi_init = int(np.median(cycles_init[:,0][mask_thresh]))
+            inspi_corrected.append(_inspi_init)
         else:
-            start_i, stop_i = inspi_starts[cycle_i], inspi_starts[cycle_i+1] 
+            inspi_corrected.append(inspi_cross_corr)
 
-        sums[cycle_i] = np.sum(np.abs(respi[start_i:stop_i] - respi[start_i:stop_i].mean()))
-
-    cycle_metrics = np.log(sums)
-
-    #### exclude regarding duration
-    durations = np.diff(inspi_starts/srate)
-
-    # cycle_duration_sel_i = [i for i, val in enumerate(durations) if (val > 1/respi_scale[0] or val < 1/respi_scale[1]) == False]
-    # cycle_duration_excluded_i = [i for i, val in enumerate(durations) if (val > 1/respi_scale[0] or val < 1/respi_scale[1])]
-    cycle_duration_sel_i = [i for i, val in enumerate(durations) if (val < 1/respi_scale[1]) == False]
-    cycle_duration_excluded_i = [i for i, val in enumerate(durations) if (val < 1/respi_scale[1])]
-    cycle_metrics_cleaned = cycle_metrics[cycle_duration_sel_i]
+    inspi_corrected = np.array(inspi_corrected)
 
     if debug:
-
-        fig, ax = plt.subplots()
-        ax.plot(respi)
-        ax.scatter(inspi_starts, respi[inspi_starts], color='g')
-        ax.scatter(inspi_starts[cycle_duration_excluded_i], respi[inspi_starts[cycle_duration_excluded_i]], color='k', marker='x', s=100)
-
-        ax2 = ax.twinx()
-        ax2.scatter(inspi_starts[1:], 1/durations, color='r', label=exclusion_metrics)
-        ax2.axhline(respi_scale[0], color='r')
-        ax2.axhline(respi_scale[1], color='r')
-        plt.title('durations')
+        plt.plot(respi)
+        for inspi_cross_corr in cross_corr_inspi:
+            _up, _down = inspi_cross_corr + exclusion_thresh, inspi_cross_corr - exclusion_thresh
+            plt.vlines([_up, _down], ymin=respi.min(), ymax=respi.max(), color='r')
+        plt.scatter(cycles_init[:,0], respi[cycles_init[:,0]], color='b', label='cycles_init_inspi')
+        plt.scatter(cross_corr_inspi, respi[cross_corr_inspi], color='r', label='cross_corr_inspi')
+        plt.scatter(inspi_corrected, respi[inspi_corrected], color='g', label='corrected_inspi', marker='x', s=100)
         plt.legend()
         plt.show()
 
-    cycles = cycles[cycle_duration_sel_i, :]
-    next_inspi = next_inspi[cycle_duration_sel_i]
+    expi_corrected = []
 
-    #### exclude regarding metric
-    if exclusion_metrics == 'med':
-        med, mad = physio.compute_median_mad(cycle_metrics_cleaned)
-        metric_center, metric_dispersion = med, mad
+    for expi_cross_corr_i, expi_cross_corr in enumerate(cross_corr_expi):
 
-    if exclusion_metrics == 'mean':
-        metric_center, metric_dispersion = cycle_metrics_cleaned.mean(), cycle_metrics_cleaned.std()
+        _up, _down = expi_cross_corr + exclusion_thresh, expi_cross_corr - exclusion_thresh
+        mask_thresh = (cycles_init[:,1] <= _up) & (cycles_init[:,1] >= _down)
+        if mask_thresh.sum() != 0:
+            _expi_init = int(np.median(cycles_init[:,1][mask_thresh]))
+            expi_corrected.append(_expi_init)
+        else:
+            expi_corrected.append(expi_cross_corr)
 
-    if exclusion_metrics == 'mod':
-        med, mad = physio.compute_median_mad(cycle_metrics_cleaned)
-        mod = physio.get_empirical_mode(cycle_metrics_cleaned)
-        metric_center, metric_dispersion = mod, med
+    expi_corrected = np.array(expi_corrected)
 
-    # chunk_metrics_excluded = cycle_metrics_cleaned[(cycle_metrics_cleaned < (metric_center - metric_dispersion*metric_coeff_exclusion)) | (cycle_metrics_cleaned > (metric_center + metric_dispersion*metric_coeff_exclusion))]
-    cycle_metrics_excluded = cycle_metrics_cleaned[(cycle_metrics_cleaned < (metric_center - metric_dispersion*metric_coeff_exclusion))]
-    cycle_metrics_excluded_i = [i for i, val in enumerate(cycle_metrics_cleaned) if val in cycle_metrics_excluded]
-
-    #### verif cycle metrics
     if debug:
-
-        fig, ax = plt.subplots()
-        ax.plot(respi)
-        ax.scatter(inspi_starts, respi[inspi_starts], color='g')
-        ax.scatter(inspi_starts[cycle_duration_excluded_i], respi[inspi_starts[cycle_duration_excluded_i]], color='k', marker='x', s=100)
-
-        ax2 = ax.twinx()
-        ax2.scatter(inspi_starts, cycle_metrics, color='r', label=exclusion_metrics)
-        ax2.axhline(metric_center, color='r')
-        ax2.axhline(metric_center - metric_dispersion*metric_coeff_exclusion, color='r', linestyle='--')
-        ax2.axhline(metric_center + metric_dispersion*metric_coeff_exclusion, color='r', linestyle='--')
+        plt.plot(respi)
+        for expi_cross_corr in cross_corr_expi:
+            _up, _down = expi_cross_corr + exclusion_thresh, expi_cross_corr - exclusion_thresh
+            plt.vlines([_up, _down], ymin=respi.min(), ymax=respi.max(), color='r')
+        plt.scatter(cycles_init[:,1], respi[cycles_init[:,1]], color='b', label='cycles_init_expi')
+        plt.scatter(cross_corr_expi, respi[cross_corr_expi], color='r', label='cross_corr_expi')
+        plt.scatter(expi_corrected, respi[expi_corrected], color='g', label='corrected_expi', marker='x', s=100)
         plt.legend()
         plt.show()
+
+    #### clean by altercating inspi and expi
+    inspi_cleaned = np.array([], dtype='int')
+    
+    for inspi_i, inspi in enumerate(inspi_corrected):
+
+        if inspi_i == 0 or inspi == inspi_corrected[-1]:
+            inspi_cleaned = np.append(inspi_cleaned, inspi)
+            continue
+
+        mask_expi = expi_corrected > inspi
+        next_expi = expi_corrected[mask_expi][0]
+
+        mask_inspi = inspi_corrected < next_expi
+        correct_inspi = inspi_corrected[mask_inspi][-1]
+
+        if inspi != correct_inspi:
+            continue
+
+        else:
+            inspi_cleaned = np.append(inspi_cleaned, inspi)
+
+    expi_cleaned = np.array([], dtype='int')
+
+    for expi_i, expi in enumerate(expi_corrected):
+
+        mask_inspi = expi < inspi_corrected
+        next_inspi = inspi_corrected[mask_inspi][0]
+
+        mask_expi = expi_corrected < next_inspi
+        correct_expi = expi_corrected[mask_expi][-1]
+
+        if expi != correct_expi:
+            continue
+
+        else:
+            expi_cleaned = np.append(expi_cleaned, expi)
+
+    if inspi_cleaned.size != expi_cleaned.size+1:
+        raise ValueError('!!! bad detection !!!')
+    
+    cycles_cleaned = np.concatenate((inspi_cleaned[:-1].reshape(-1,1), expi_cleaned.reshape(-1,1), inspi_cleaned[1:].reshape(-1,1)), axis=1)
+
+    if debug:
 
         plt.plot(respi)
+        plt.scatter(cycles_cleaned[:,0], respi[cycles_cleaned[:,0]], color='g', label='inspi')
+        plt.scatter(cycles_cleaned[:,1], respi[cycles_cleaned[:,1]], color='r', label='expi')
+        plt.scatter(cycles_cleaned[:,2], respi[cycles_cleaned[:,2]], color='g', label='next_inspi')
+        plt.legend()
         plt.show()
 
-    #### final cleaning
-    next_inspi_final = np.append(cycles[1:,0], next_inspi[-1])
-    cycles_final = np.concatenate((cycles, next_inspi_final.reshape(-1,1)), axis=1)
-    cycles_mask_keep = np.ones((cycles_final.shape[0]), dtype='int')
-    cycles_mask_keep[cycle_metrics_excluded_i] = 0
-    cycles_mask_keep[-1] = 0
-
-    #### fig for all detection
+    #### export fig
     time_vec = np.arange(respi.shape[0])/srate
+
+    inspi_removed = np.array([inspi for inspi in cycles_init[:,0] if inspi not in cycles_cleaned[:,0]])
+    expi_removed = np.array([expi for expi in cycles_init[:,1] if expi not in cycles_cleaned[:,1]])
     
-    inspi_starts_init = cycles_init[:,0]
     fig_respi_exclusion, ax = plt.subplots(figsize=(18, 10))
     ax.plot(time_vec, respi)
-    ax.scatter(inspi_starts_init/srate, respi[inspi_starts_init], color='g', label='inspi_selected')
-    ax.scatter(cycles_init[:-1,1]/srate, respi[cycles_init[:-1,1]], color='c', label='expi_selected', marker='s')
-    ax.scatter(inspi_starts_init[cycle_inspi_excluded_i]/srate, respi[inspi_starts_init[cycle_inspi_excluded_i]], color='m', label='excluded_inspi', marker='+', s=200)
-    ax.scatter(inspi_starts[cycle_duration_excluded_i]/srate, respi[inspi_starts[cycle_duration_excluded_i]], color='k', label='excluded_duration', marker='x', s=200)
-    ax.scatter(cycles[:,0][cycle_metrics_excluded_i]/srate, respi[cycles[:,0][cycle_metrics_excluded_i]], color='r', label='excluded_metric')
+
+    ax.scatter(cycles_init[:,0]/srate, respi[cycles_init[:,0]], color='g', label='inspi')
+    ax.scatter(inspi_removed/srate, respi[inspi_removed], color='k', marker='x', s=100)
+    ax.scatter(cycles_cleaned[:,0]/srate, respi[cycles_cleaned[:,0]], color='g')
+    ax.scatter(cycles_cleaned[:,-1]/srate, respi[cycles_cleaned[:,-1]], color='g')
+
+    ax.scatter(cycles_init[:,1]/srate, respi[cycles_init[:,1]], color='r', label='expi')
+    ax.scatter(expi_removed/srate, respi[expi_removed], color='k', marker='x', s=100)
+    ax.scatter(cycles_cleaned[:,1]/srate, respi[cycles_cleaned[:,1]], color='r')
+
     plt.legend()
     # plt.show()
-    plt.close()
 
-    #### fig final
-    inspi_starts_init = cycles_init[:,0]
     fig_final, ax = plt.subplots(figsize=(18, 10))
     ax.plot(time_vec, respi)
-    ax.scatter(cycles[:,0]/srate, respi[cycles[:,0]], color='g', label='inspi_selected')
-    ax.scatter(cycles[:-1,1]/srate, respi[cycles[:-1,1]], color='c', label='expi_selected', marker='s')
-    ax.scatter(cycles[:,0][cycle_metrics_excluded_i]/srate, respi[cycles[:,0][cycle_metrics_excluded_i]], color='r', label='excluded_metric')
+
+    ax.scatter(cycles_cleaned[:,0]/srate, respi[cycles_cleaned[:,0]], color='g', label='inspi')
+    ax.scatter(cycles_cleaned[:,-1]/srate, respi[cycles_cleaned[:,-1]], color='g')
+    ax.scatter(cycles_cleaned[:,1]/srate, respi[cycles_cleaned[:,1]], color='r', label='expi')
+
     plt.legend()
     # plt.show()
-    plt.close()
 
-    return cycles_final, cycles_mask_keep, fig_respi_exclusion, fig_final
+    return cycles_cleaned, fig_respi_exclusion, fig_final
 
 
+    
 
 
 
@@ -352,183 +365,62 @@ def exclude_bad_cycles(respi, cycles_init, srate, exclusion_metrics='med', metri
 
 
 
-def load_respi_allcond_data(sujet, cycle_detection_params):
+def load_respfeatures(sujet):
 
     #### load data
     os.chdir(path_prep)
 
-    xr_respi = xr.open_dataarray('alldata_preproc.nc').loc[:, :, 'pression',:].drop_vars('chan')
+    xr_respi = xr.open_dataarray('alldata_preproc.nc').loc[sujet, :, 'pression',:].drop_vars(['chan', 'sujet'])
 
     respfeatures_allcond = {}
+    respi_allcond = {}
 
-    for sujet in sujet_list:
+    #cond = 'VS'
+    for cond in cond_list:
 
-        respfeatures_allcond[sujet] = {}
+        respi = xr_respi.loc[cond,:].values
+        respi_allcond[cond] = respi
 
-        #cond = 'VS'
-        for cond in cond_list:
-
-            # cycles = physio.detect_respiration_cycles(respi_allcond[cond][odor_i], srate, baseline_mode='median',
-            #                                           baseline=None, epsilon_factor1=10, epsilon_factor2=5, inspiration_adjust_on_derivative=False)
-            cycles = detect_respiration_cycles(xr_respi.loc[sujet, cond, :].values, srate, baseline_mode='median',
-                                                        baseline=None, epsilon_factor1=10, epsilon_factor2=5, inspiration_adjust_on_derivative=False)
-            
-            if debug:
-
-                fig, ax = plt.subplots()
-                ax.plot(respi_allcond[cond][odor_i])
-                ax.scatter(cycles[:,0], respi_allcond[cond][odor_i][cycles[:,0]], color='g')
-                plt.show()
-
-            if sujet in ['07PB', '11FA', '16GM', '18SE', '20TY', '24TJ', '25DF', '26MN', '28NT', '30AR']:
-
-                cycles, cycles_mask_keep, fig_respi_exclusion, fig_final = exclude_bad_cycles(respi_allcond[cond][odor_i], cycles, srate, 
-                        exclusion_metrics=cycle_detection_params['exclusion_metrics'], metric_coeff_exclusion=cycle_detection_params['metric_coeff_exclusion'], 
-                        inspi_coeff_exclusion=cycle_detection_params['inspi_coeff_exclusion'], respi_scale=[0.1, 0.5])
-            
-            elif sujet in ['32CM']:
-
-                cycles, cycles_mask_keep, fig_respi_exclusion, fig_final = exclude_bad_cycles(respi_allcond[cond][odor_i], cycles, srate, 
-                        exclusion_metrics=cycle_detection_params['exclusion_metrics'], metric_coeff_exclusion=cycle_detection_params['metric_coeff_exclusion'], 
-                        inspi_coeff_exclusion=cycle_detection_params['inspi_coeff_exclusion'], respi_scale=[0.1, 0.6])
-
-            else:
-
-                cycles, cycles_mask_keep, fig_respi_exclusion, fig_final = exclude_bad_cycles(respi_allcond[cond][odor_i], cycles, srate, 
-                        exclusion_metrics=cycle_detection_params['exclusion_metrics'], metric_coeff_exclusion=cycle_detection_params['metric_coeff_exclusion'], 
-                        inspi_coeff_exclusion=cycle_detection_params['inspi_coeff_exclusion'], respi_scale=cycle_detection_params['respi_scale'])
-                
-            if debug:
-
-                fig, ax = plt.subplots()
-                ax.plot(respi_allcond[cond][odor_i])
-                ax.scatter(cycles[:,0], respi_allcond[cond][odor_i][cycles[:,0]], color='r')
-                ax.scatter(cycles[:,0][cycles_mask_keep.astype('bool')], respi_allcond[cond][odor_i][cycles[:,0][cycles_mask_keep.astype('bool')]], color='g')
-                plt.show()
-
-            #### get resp_features
-            resp_features_i = physio.compute_respiration_cycle_features(respi_allcond[cond][odor_i], srate, cycles, baseline=None)
-
-            select_vec = np.ones((resp_features_i.index.shape[0]), dtype='int')
-            select_vec[cycles_mask_keep] = 0
-            resp_features_i.insert(resp_features_i.columns.shape[0], 'select', select_vec)
-            
-            respfeatures_allcond[cond][odor_i] = [resp_features_i, fig_respi_exclusion, fig_final]
-
-
-    return raw_allcond, respi_allcond, respfeatures_allcond
-
-
-
-
-
-
-
-def load_respi_allcond_data_recompute(sujet, cond, odor_i, cycle_detection_params):
-
-
-    #### load data
-    os.chdir(os.path.join(path_prep, sujet, 'sections'))
-
-    srate = get_params()['srate']
-
-    load_i = []
-    for session_i, session_name in enumerate(os.listdir()):
-        if session_name.find(cond) != -1 and session_name.find(odor_i) != -1 and (session_name.find('lf') != -1 or session_name.find('wb') != -1):
-            load_i.append(session_i)
-        else:
-            continue
-
-    load_name = [os.listdir()[i] for i in load_i][0]
-
-    load_data = mne.io.read_raw_fif(load_name, preload=True)
-    load_data = load_data.pick_channels(['PRESS']).get_data().reshape(-1)
-
-    raw = load_data
-
-    #### preproc respi
-    resp_clean = physio.preprocess(raw, srate, band=25., btype='lowpass', ftype='bessel', order=5, normalize=False)
-    resp_clean_smooth = physio.smooth_signal(resp_clean, srate, win_shape='gaussian', sigma_ms=40.0)
-
-    respi = resp_clean_smooth
-
-    #### detect
-
-    cycles = physio.detect_respiration_cycles(respi, srate, baseline_mode='median',inspration_ajust_on_derivative=True)
-
-    cycles, cycles_mask_keep, fig_respi_exclusion, fig_final = exclude_bad_cycles(respi_allcond[cond][odor_i], cycles, srate, 
-                                exclusion_metrics=cycle_detection_params['exclusion_metrics'], metric_coeff_exclusion=cycle_detection_params['metric_coeff_exclusion'], 
-                                inspi_coeff_exclusion=cycle_detection_params['inspi_coeff_exclusion'], respi_scale=cycle_detection_params['respi_scale'])
-
-    #### get resp_features
-    resp_features_i = physio.compute_respiration_cycle_features(respi_allcond[cond][odor_i], srate, cycles, baseline=None)
-
-    select_vec = np.ones((resp_features_i.index.shape[0]), dtype='int')
-    select_vec[cycles_mask_keep] = 0
-    resp_features_i.insert(resp_features_i.columns.shape[0], 'select', select_vec)
-
-    respfeatures = [resp_features_i, fig_respi_exclusion, fig_final]
-
-    return raw, respi, respfeatures
-
-
-
-
-
-
-
-
-########################################
-######## EDIT CYCLES SELECTED ########
-########################################
-
-
-#respi_allcond = respi_allcond_bybycle
-# def edit_df_for_sretch_cycles_deleted(respi_allcond, respfeatures_allcond):
-
-#     for cond in conditions:
+        # cycles = physio.detect_respiration_cycles(respi, srate, baseline_mode='median',
+        #                                           baseline=None, epsilon_factor1=10, epsilon_factor2=5, inspiration_adjust_on_derivative=False)
         
-#         for odor_i in odor_list:
-
-#             #### stretch
-#             cycles = respfeatures_allcond[cond][odor_i][0][['inspi_index', 'expi_index']].values/srate
-#             times = np.arange(respi_allcond[cond][odor_i].shape[0])/srate
-#             clipped_times, times_to_cycles, cycles, cycle_points, data_stretch_linear = respirationtools.deform_to_cycle_template(
-#                     respi_allcond[cond][odor_i], times, cycles, nb_point_by_cycle=stretch_point_TF, inspi_ratio=ratio_stretch_TF)
-
-#             if debug:
-#                 plt.plot(data_stretch_linear)
-#                 plt.show()
-
-#             i_to_update = respfeatures_allcond[cond][odor_i][0].index.values[~np.isin(respfeatures_allcond[cond][odor_i][0].index.values, cycles)]
-#             for i_to_update_i in i_to_update:
-                
-#                 if i_to_update_i == respfeatures_allcond[cond][odor_i][0].shape[0] - 1:
-#                     continue
-
-#                 else:
-#                     respfeatures_allcond[cond][odor_i][0]['select'][i_to_update_i] = 0
-
-#     return respfeatures_allcond
-
-
-
-def export_cycle_count(sujet, respfeatures_allcond):
-
-    #### generate df
-    df_count_cycle = pd.DataFrame(columns={'sujet' : [], 'cond' : [], 'odor' : [], 'count' : []})
-
-    for cond in conditions:
+        cycles = debugged_detect_respiration_cycles(respi, srate, baseline_mode='median',
+                                                    baseline=None, epsilon_factor1=10, epsilon_factor2=5, inspiration_adjust_on_derivative=False)
         
-        for odor_i in odor_list:
+        if debug:
 
-            data_i = {'sujet' : [sujet], 'cond' : [cond], 'odor' : [odor_i], 'count' : [int(np.sum(respfeatures_allcond[cond][odor_i][0]['select'].values))]}
-            df_i = pd.DataFrame(data_i, columns=data_i.keys())
-            df_count_cycle = pd.concat([df_count_cycle, df_i])
+            fig, ax = plt.subplots()
+            ax.plot(respi)
+            ax.scatter(cycles[:,0], respi[cycles[:,0]], color='g')
+            plt.show()
 
-    #### export
-    os.chdir(os.path.join(path_results, sujet, 'RESPI'))
-    df_count_cycle.to_excel(f'{sujet}_count_cycles.xlsx')
+        cycles, fig_respi_exclusion, fig_final = exclude_bad_cycles(respi, cycles, srate, exclusion_coeff=1)
+            
+        if debug:
+
+            fig, ax = plt.subplots()
+            ax.plot(respi)
+            ax.scatter(cycles[:,0], respi[cycles[:,0]], color='r')
+            plt.show()
+
+        #### get resp_features
+        resp_features_i = physio.compute_respiration_cycle_features(respi, srate, cycles, baseline=None)
+
+        select_vec = np.ones((resp_features_i.index.shape[0]), dtype='int')
+        resp_features_i.insert(resp_features_i.columns.shape[0], 'select', select_vec)
+        
+        respfeatures_allcond[cond] = [resp_features_i, fig_respi_exclusion, fig_final]
+
+    return respi_allcond, respfeatures_allcond
+
+
+
+
+
+
+
+
+
 
 
 
@@ -547,10 +439,6 @@ def export_cycle_count(sujet, respfeatures_allcond):
 
 if __name__ == '__main__':
 
-    ############################
-    ######## LOAD DATA ########
-    ############################
-
     
     # sujet_list = ['01NM_MW', '02NM_OL', '03NM_MC', '04NM_LS', '05NM_JS', '06NM_HC', '07NM_YB', '08NM_CM', '09NM_CV', '10NM_VA', '11NM_LC', '12NM_PS', '13NM_JP', '14NM_LD',
     #           '15PH_JS',  '16PH_LP',  '17PH_MN',  '18PH_SB',  '19PH_TH',  '20PH_VA',  '21PH_VS',
@@ -561,11 +449,8 @@ if __name__ == '__main__':
     for sujet in sujet_list:
 
         print(sujet)
-
-        #### load data
-        os.chdir(os.path.join(path_data, 'respi_detection'))
         
-        raw_allcond, respi_allcond, respfeatures_allcond = load_respi_allcond_data(sujet, cycle_detection_params)
+        respi_allcond, respfeatures_allcond = load_respfeatures(sujet)
 
         ########################################
         ######## VERIF RESPIFEATURES ########
@@ -576,8 +461,8 @@ if __name__ == '__main__':
             cond = 'VS'
             cond = 'CHARGE' 
 
-            respfeatures_allcond[cond][odor_i][1].show()
-            respfeatures_allcond[cond][odor_i][2].show()
+            respfeatures_allcond[cond][1].show()
+            respfeatures_allcond[cond][2].show()
 
         ########################################
         ######## EDIT CYCLES SELECTED ########
@@ -585,35 +470,51 @@ if __name__ == '__main__':
 
         # respfeatures_allcond = edit_df_for_sretch_cycles_deleted(respi_allcond, respfeatures_allcond)
 
-        export_cycle_count(sujet, respfeatures_allcond)
+        #### generate df
+        df_count_cycle = pd.DataFrame(columns={'sujet' : [], 'cond' : [], 'count' : []})
+
+        for cond in cond_list:
+            
+            data_i = {'sujet' : [sujet], 'cond' : [cond], 'count' : [int(np.sum(respfeatures_allcond[cond][0]['select'].values))]}
+            df_i = pd.DataFrame(data_i, columns=data_i.keys())
+            df_count_cycle = pd.concat([df_count_cycle, df_i])
+
+        #### export
+        os.chdir(os.path.join(path_results, 'RESPI', 'count'))
+        df_count_cycle.to_excel(f'{sujet}_count_cycles.xlsx')
 
         if debug :
 
-            for cond in conditions:
+            for cond in cond_list:
 
-                for odor in odor_list:
-
-                    _respi = respi_allcond[cond][odor_i]
-                    plt.plot(_respi)
-                    plt.vlines(respfeatures_allcond[cond][odor_i][0]['inspi_index'].values, ymin=_respi.min(), ymax=_respi.max(), color='r')
-                    plt.title(f"{odor} {cond}")
-                    plt.show()
+                _respi = respi_allcond[cond]
+                plt.plot(_respi)
+                plt.vlines(respfeatures_allcond[cond][0]['inspi_index'].values, ymin=_respi.min(), ymax=_respi.max(), color='r')
+                plt.title(f"{cond}")
+                plt.show()
 
         ################################
         ######## SAVE FIG ########
         ################################
 
-        os.chdir(os.path.join(path_results, sujet, 'RESPI'))
+        for cond in cond_list:
 
-        for cond in conditions:
+            os.chdir(os.path.join(path_results, 'RESPI', 'respfeatures'))
+            respfeatures_allcond[cond][0].to_excel(f"{sujet}_{cond}_respfeatures.xlsx")
+            
+            os.chdir(os.path.join(path_results, 'RESPI', 'detection'))
+            respfeatures_allcond[cond][1].savefig(f"{sujet}_{cond}_fig0.jpeg")
+            respfeatures_allcond[cond][2].savefig(f"{sujet}_{cond}_fig1.jpeg")
 
-            for odor_i in odor_list:
-
-                respfeatures_allcond[cond][odor_i][0].to_excel(f"{sujet}_{cond}_{odor_i}_respfeatures.xlsx")
-                respfeatures_allcond[cond][odor_i][1].savefig(f"{sujet}_{cond}_{odor_i}_fig0.jpeg")
-                respfeatures_allcond[cond][odor_i][2].savefig(f"{sujet}_{cond}_{odor_i}_fig1.jpeg")
+        plt.close('all')
 
 
+
+
+
+    ####################################
+    ######## AGGREGATES COUNT ########
+    ####################################
         
 
 

@@ -947,12 +947,12 @@ if __name__== '__main__':
             ######## PARAMS ########
             ########################
 
-            # sujet_list = ['01NM_MW', '02NM_OL', '03NM_MC', '04NM_VS', '05NM_LS', '06NM_JS', '07NM_HC', '08NM_YB','09NM_ML', '10NM_CM', '11NM_CV', '12NM_VA', '13NM_LC', '14NM_PS', '15NM_SL', '16NM_JP', '17NM_LD',
-            #   '18PH_JS',  '19PH_LP',  '20PH_MN',  '21PH_SB',  '22PH_TH',  '23PH_VA',  '24PH_VS',
-            #   '25IL_NM', '26IL_HM', '27IL_DG', '28IL_DM', '29IL_DR', '30IL_DJ', '31IL_DC', '32IL_AP', '33IL_SL', '34IL_LL', '35IL_VR', '36IL_LC', '37IL_MA', '38IL_LY', '39IL_BA', '40IL_CM', '41IL_EA', '42IL_LT']
+            # sujet_list = ['01NM_MW', '02NM_OL', '03NM_MC', '04NM_LS', '05NM_JS', '06NM_HC', '07NM_YB', '08NM_CM', '09NM_CV', '10NM_VA', '11NM_LC', '12NM_PS', '13NM_JP', '14NM_LD',
+            #   '15PH_JS',  '16PH_LP',  '17PH_MN',  '18PH_SB',  '19PH_TH',  '20PH_VA',  '21PH_VS',
+            #   '22IL_NM', '23IL_DG', '24IL_DM', '25IL_DJ', '26IL_DC', '27IL_AP', '28IL_SL', '29IL_LL', '30IL_VR', '31IL_LC', '32IL_MA', '33IL_LY', '34IL_BA', '35IL_CM', '36IL_EA', '37IL_LT']
 
 
-            # sujet = '04NM_VS'
+            # sujet = '32IL_MA'
 
             # cond_list = ['VS', 'CHARGE']
 
