@@ -152,6 +152,13 @@ def debugged_detect_respiration_cycles(resp, srate, baseline_mode='manual', base
 #cycles_init = cycles
 def exclude_bad_cycles(respi, cycles_init, srate, exclusion_coeff=1):
 
+    if debug:
+        plt.plot(respi, label='respi')
+        plt.scatter(cycles_init[:,0], respi[cycles_init[:,0]], color='g', label='inspi')
+        plt.scatter(cycles_init[:,1], respi[cycles_init[:,1]], color='r', label='expi')
+        plt.scatter(cycles_init[:,2], respi[cycles_init[:,2]], color='b', label='next_inspi')
+        plt.legend()
+        plt.show()
 
     #### compute average durations and dispertion for inspi and expi together
     all_inspi_expi = np.diff(cycles_init, axis=1).reshape(-1)
@@ -199,7 +206,7 @@ def exclude_bad_cycles(respi, cycles_init, srate, exclusion_coeff=1):
     if debug:
         plt.plot(correlate_inspi)
         plt.scatter(cross_corr_inspi, correlate_inspi[cross_corr_inspi], color='r')
-        plt.hlines(peak_thresh_expi, xmin=0, xmax=correlate_inspi.size, color='r')
+        plt.hlines(peak_thresh_inspi, xmin=0, xmax=correlate_inspi.size, color='r')
         plt.show()
 
         respi_zscore = zscore(respi)
@@ -269,6 +276,20 @@ def exclude_bad_cycles(respi, cycles_init, srate, exclusion_coeff=1):
         plt.legend()
         plt.show()
 
+    if debug:
+        plt.plot(respi)
+        plt.scatter(inspi_corrected, respi[inspi_corrected], color='g', label='inspi')
+        plt.scatter(expi_corrected, respi[expi_corrected], color='r', label='expi')
+        plt.legend()
+        plt.show()
+
+    #### verify that detection start and stop by inspi 
+    if expi_corrected[0] < inspi_corrected[0]:
+        inspi_corrected = np.insert(inspi_corrected, 0, cycles_init[0,0])
+
+    if expi_corrected[-1] > inspi_corrected[-1]:
+        expi_corrected = expi_corrected[:-1]
+
     #### clean by altercating inspi and expi
     inspi_cleaned = np.array([], dtype='int')
     
@@ -309,6 +330,14 @@ def exclude_bad_cycles(respi, cycles_init, srate, exclusion_coeff=1):
     if inspi_cleaned.size != expi_cleaned.size+1:
         raise ValueError('!!! bad detection !!!')
     
+    if debug:
+
+        plt.plot(respi)
+        plt.scatter(inspi_cleaned, respi[inspi_cleaned], color='g', label='inspi')
+        plt.scatter(expi_cleaned, respi[expi_cleaned], color='r', label='expi')
+        plt.legend()
+        plt.show()
+    
     cycles_cleaned = np.concatenate((inspi_cleaned[:-1].reshape(-1,1), expi_cleaned.reshape(-1,1), inspi_cleaned[1:].reshape(-1,1)), axis=1)
 
     if debug:
@@ -316,7 +345,7 @@ def exclude_bad_cycles(respi, cycles_init, srate, exclusion_coeff=1):
         plt.plot(respi)
         plt.scatter(cycles_cleaned[:,0], respi[cycles_cleaned[:,0]], color='g', label='inspi')
         plt.scatter(cycles_cleaned[:,1], respi[cycles_cleaned[:,1]], color='r', label='expi')
-        plt.scatter(cycles_cleaned[:,2], respi[cycles_cleaned[:,2]], color='g', label='next_inspi')
+        plt.scatter(cycles_cleaned[:,2], respi[cycles_cleaned[:,2]], color='b', label='next_inspi')
         plt.legend()
         plt.show()
 
@@ -330,12 +359,14 @@ def exclude_bad_cycles(respi, cycles_init, srate, exclusion_coeff=1):
     ax.plot(time_vec, respi)
 
     ax.scatter(cycles_init[:,0]/srate, respi[cycles_init[:,0]], color='g', label='inspi')
-    ax.scatter(inspi_removed/srate, respi[inspi_removed], color='k', marker='x', s=100)
+    if inspi_removed.size != 0:
+        ax.scatter(inspi_removed/srate, respi[inspi_removed], color='k', marker='x', s=100)
     ax.scatter(cycles_cleaned[:,0]/srate, respi[cycles_cleaned[:,0]], color='g')
     ax.scatter(cycles_cleaned[:,-1]/srate, respi[cycles_cleaned[:,-1]], color='g')
 
     ax.scatter(cycles_init[:,1]/srate, respi[cycles_init[:,1]], color='r', label='expi')
-    ax.scatter(expi_removed/srate, respi[expi_removed], color='k', marker='x', s=100)
+    if expi_removed.size != 0:
+        ax.scatter(expi_removed/srate, respi[expi_removed], color='k', marker='x', s=100)
     ax.scatter(cycles_cleaned[:,1]/srate, respi[cycles_cleaned[:,1]], color='r')
 
     plt.legend()
@@ -381,35 +412,57 @@ def load_respfeatures(sujet):
         respi = xr_respi.loc[cond,:].values
         respi_allcond[cond] = respi
 
+        params = physio.get_respiration_parameters('human_airflow')
+        params['cycle_clean']['low_limit_log_ratio'] = 6
+
+        if debug:
+
+            plt.plot(respi)
+            plt.show()
+
+        respi, resp_features_i = physio.compute_respiration(raw_resp=respi, srate=srate, parameters=params)
+
+        time_vec = np.arange(respi.size)/srate
+
+        fig_final, ax = plt.subplots(figsize=(18, 10))
+        ax.plot(time_vec, respi)
+
+        ax.scatter(resp_features_i['inspi_index'].values/srate, respi[resp_features_i['inspi_index'].values], color='g', label='inspi')
+        ax.scatter(resp_features_i['expi_index'].values/srate, respi[resp_features_i['expi_index'].values], color='r', label='expi')
+        ax.scatter(resp_features_i['next_inspi_index'].values/srate, respi[resp_features_i['next_inspi_index'].values], color='g', label='inspi')
+
+        plt.legend()
+        # plt.show()
+
         # cycles = physio.detect_respiration_cycles(respi, srate, baseline_mode='median',
         #                                           baseline=None, epsilon_factor1=10, epsilon_factor2=5, inspiration_adjust_on_derivative=False)
         
-        cycles = debugged_detect_respiration_cycles(respi, srate, baseline_mode='median',
-                                                    baseline=None, epsilon_factor1=10, epsilon_factor2=5, inspiration_adjust_on_derivative=False)
+        # cycles = debugged_detect_respiration_cycles(respi, srate, baseline_mode='median',
+        #                                             baseline=None, epsilon_factor1=10, epsilon_factor2=5, inspiration_adjust_on_derivative=False)
         
-        if debug:
+        # if debug:
 
-            fig, ax = plt.subplots()
-            ax.plot(respi)
-            ax.scatter(cycles[:,0], respi[cycles[:,0]], color='g')
-            plt.show()
+        #     fig, ax = plt.subplots()
+        #     ax.plot(respi)
+        #     ax.scatter(cycles[:,0], respi[cycles[:,0]], color='g')
+        #     plt.show()
 
-        cycles, fig_respi_exclusion, fig_final = exclude_bad_cycles(respi, cycles, srate, exclusion_coeff=1)
+        # cycles, fig_respi_exclusion, fig_final = exclude_bad_cycles(respi, cycles, srate, exclusion_coeff=1)
             
-        if debug:
+        # if debug:
 
-            fig, ax = plt.subplots()
-            ax.plot(respi)
-            ax.scatter(cycles[:,0], respi[cycles[:,0]], color='r')
-            plt.show()
+        #     fig, ax = plt.subplots()
+        #     ax.plot(respi)
+        #     ax.scatter(cycles[:,0], respi[cycles[:,0]], color='r')
+        #     plt.show()
 
-        #### get resp_features
-        resp_features_i = physio.compute_respiration_cycle_features(respi, srate, cycles, baseline=None)
+        # #### get resp_features
+        # resp_features_i = physio.compute_respiration_cycle_features(respi, srate, cycles, baseline=None)
 
-        select_vec = np.ones((resp_features_i.index.shape[0]), dtype='int')
-        resp_features_i.insert(resp_features_i.columns.shape[0], 'select', select_vec)
+        # select_vec = np.ones((resp_features_i.index.shape[0]), dtype='int')
+        # resp_features_i.insert(resp_features_i.columns.shape[0], 'select', select_vec)
         
-        respfeatures_allcond[cond] = [resp_features_i, fig_respi_exclusion, fig_final]
+        respfeatures_allcond[cond] = [resp_features_i, fig_final]
 
     return respi_allcond, respfeatures_allcond
 
@@ -444,7 +497,7 @@ if __name__ == '__main__':
     #           '15PH_JS',  '16PH_LP',  '17PH_MN',  '18PH_SB',  '19PH_TH',  '20PH_VA',  '21PH_VS',
     #           '22IL_NM', '23IL_DG', '24IL_DM', '25IL_DJ', '26IL_DC', '27IL_AP', '28IL_SL', '29IL_LL', '30IL_VR', '31IL_LC', '32IL_MA', '33IL_LY', '34IL_BA', '35IL_CM', '36IL_EA', '37IL_LT']
 
-    sujet = '01NM_MW'
+    sujet = '11NM_LC'
 
     for sujet in sujet_list:
 
@@ -462,7 +515,7 @@ if __name__ == '__main__':
             cond = 'CHARGE' 
 
             respfeatures_allcond[cond][1].show()
-            respfeatures_allcond[cond][2].show()
+            # respfeatures_allcond[cond][2].show()
 
         ########################################
         ######## EDIT CYCLES SELECTED ########
@@ -475,7 +528,7 @@ if __name__ == '__main__':
 
         for cond in cond_list:
             
-            data_i = {'sujet' : [sujet], 'cond' : [cond], 'count' : [int(np.sum(respfeatures_allcond[cond][0]['select'].values))]}
+            data_i = {'sujet' : [sujet], 'cond' : [cond], 'count' : [respfeatures_allcond[cond][0].shape[0]]}
             df_i = pd.DataFrame(data_i, columns=data_i.keys())
             df_count_cycle = pd.concat([df_count_cycle, df_i])
 
@@ -504,7 +557,7 @@ if __name__ == '__main__':
             
             os.chdir(os.path.join(path_results, 'RESPI', 'detection'))
             respfeatures_allcond[cond][1].savefig(f"{sujet}_{cond}_fig0.jpeg")
-            respfeatures_allcond[cond][2].savefig(f"{sujet}_{cond}_fig1.jpeg")
+            # respfeatures_allcond[cond][2].savefig(f"{sujet}_{cond}_fig1.jpeg")
 
         plt.close('all')
 
@@ -516,12 +569,16 @@ if __name__ == '__main__':
     ######## AGGREGATES COUNT ########
     ####################################
         
+    df_count_cycle = pd.DataFrame(columns={'sujet' : [], 'cond' : [], 'count' : []})
 
+    os.chdir(os.path.join(path_results, 'RESPI', 'count'))
 
+    for sujet in sujet_list:
 
+        _df_count_cycle = pd.read_excel(f'{sujet}_count_cycles.xlsx')
+        df_count_cycle = pd.concat([df_count_cycle, _df_count_cycle], axis=0)
 
+    df_count_cycle = df_count_cycle.drop(columns='Unnamed: 0')
 
-
-
-
-
+    df_count_cycle.query(f"cond == 'VS'").median()
+    df_count_cycle.query(f"cond == 'CHARGE'").median()

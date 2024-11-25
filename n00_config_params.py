@@ -53,6 +53,8 @@ chan_list_eeg = np.array(['C3', 'C4', 'CP1', 'CP2', 'CP5', 'CP6', 'Cz', 'F3', 'F
        'F8', 'FC1', 'FC2', 'FC5', 'FC6', 'Fp2', 'Fz', 'O1', 'O2', 'Oz',
        'P3', 'P4', 'P7', 'P8', 'Pz', 'T7', 'T8'])
 
+chan_list_eeg_short = np.array(['C3', 'C4', 'CP1', 'CP2', 'Cz', 'F3', 'F4', 'FC1', 'FC2', 'Fz'])
+
 #### NOTES ####
 # In PHYSIOLOGY sujet ['MC05', 'OL04'] have been excluded because they cant load
 # In ITL sujet ['NN', ] have been excluded due to bad signals in ITL
@@ -257,10 +259,12 @@ prep_step = {
 ######## ERP PARAMS ########
 ################################
 
+stretch_point_ERP = 1000
+stretch_TF_auto = False
+ratio_stretch_TF = 0.5
 
-
-PPI_time_vec = [-2.5, 1] #seconds
-ERP_time_vec = [-2.5, 2.5]
+PPI_time_vec = [-3, 1] #seconds
+ERP_time_vec = [-3, 1]
 mean_respi_ERP_time_vec = [-3,3]
 PPI_lm_time = [-2.5, 0]
 
@@ -270,3 +274,31 @@ ERP_n_surrogate = 1000
 
 
 
+################################
+######## WAVELETS ########
+################################
+
+nfrex = 50
+nfrex_fc = 50
+
+
+
+################################
+######## STATS PERM ########
+################################
+
+
+tf_stats_percentile_cluster_manual_perm = 80
+erp_time_cluster_thresh = 50 #ms
+
+################################
+######## TF & ITPC ########
+################################
+
+nfrex = 150
+ncycle_list = [7, 41]
+freq_list = [2, 150]
+srate_dw = 10
+wavetime = np.arange(-3,3,1/srate)
+frex = np.logspace(np.log10(freq_list[0]), np.log10(freq_list[1]), nfrex) 
+cycles = np.logspace(np.log10(ncycle_list[0]), np.log10(ncycle_list[1]), nfrex).astype('int')
