@@ -395,32 +395,53 @@ def exclude_bad_cycles(respi, cycles_init, srate, exclusion_coeff=1):
 ############################
 
 
-
 def load_respfeatures(sujet):
 
     #### load data
     os.chdir(path_prep)
 
-    xr_respi = xr.open_dataarray('alldata_preproc.nc').loc[sujet, :, 'pression',:].drop_vars(['chan', 'sujet'])
-
     respfeatures_allcond = {}
     respi_allcond = {}
 
-    #cond = 'VS'
+    #cond = 'CHARGE'
     for cond in cond_list:
 
-        respi = xr_respi.loc[cond,:].values
+        respi = load_data_sujet(sujet,cond)[np.where(chan_list == 'pression')[0][0],:]
+        respi = scipy.signal.detrend(respi, type='linear')
         respi_allcond[cond] = respi
 
         params = physio.get_respiration_parameters('human_airflow')
         params['cycle_clean']['low_limit_log_ratio'] = 6
+        # params['cycle_detection']['inspiration_adjust_on_derivative'] = True
+
+        diff1 = np.diff(respi)*-1
+        peaks, _ = scipy.signal.find_peaks(diff1, prominence=(diff1).std()*3)
+
+        baseline_val = []
+
+        for peak_i, peak in enumerate(peaks):
+
+            if peak_i == peaks.size-1:
+                continue
+
+            backward_signal = diff1[peaks[peak_i]:peaks[peak_i+1]][::-1]
+            backward_val = np.where(np.diff(backward_signal) > 0)[0][0]
+            baseline_val.append(respi[peak-backward_val])
+
+        baseline = np.median(baseline_val)
 
         if debug:
 
             plt.plot(respi)
+            plt.hlines(np.median(baseline_val), xmin=0, xmax=respi.size, color='r')
             plt.show()
 
-        respi, resp_features_i = physio.compute_respiration(raw_resp=respi, srate=srate, parameters=params)
+        params['baseline']['baseline_mode'] = 'manual'
+        params['baseline']['baseline'] = baseline
+
+        respi_clean, resp_features_i = physio.compute_respiration(raw_resp=respi, srate=srate, parameters=params)
+
+        respi -= baseline
 
         time_vec = np.arange(respi.size)/srate
 
@@ -469,6 +490,48 @@ def load_respfeatures(sujet):
 
 
 
+####################################
+######## PLOT MEAN RESPI ########
+####################################
+
+def plot_mean_respi(sujet):
+
+    time_vec = np.arange(stretch_point_ERP)
+    colors_respi = {'VS' : 'b', 'CHARGE' : 'r'}
+    colors_respi_sem = {'VS' : 'c', 'CHARGE' : 'm'}
+
+    respi_allcond, respfeatures = load_respfeatures(sujet)
+    sem_allcond = {}
+    lim = {'min' : np.array([]), 'max' : np.array([])} 
+
+    #### load
+    #cond = 'VS'
+    for cond in cond_list:
+
+        respi_stretch = stretch_data(respfeatures[cond][0], stretch_point_ERP, respi_allcond[cond], srate)[0]
+        respi_allcond[cond] = respi_stretch.mean(axis=0)
+        sem_allcond[cond] = respi_stretch.std(axis=0)/np.sqrt(respi_stretch.shape[0])
+        lim['min'], lim['max'] = np.append(lim['min'], respi_allcond[cond].min()-sem_allcond[cond]), np.append(lim['max'], respi_allcond[cond].max()+sem_allcond[cond])
+
+    #### plot
+    fig, ax = plt.subplots()
+
+    #cond = 'VS'
+    for cond in cond_list:
+
+        ax.plot(time_vec, respi_allcond[cond], color=colors_respi[cond], label=cond)
+        ax.fill_between(time_vec, respi_allcond[cond]+sem_allcond[cond], respi_allcond[cond]-sem_allcond[cond], alpha=0.25, color=colors_respi_sem[cond])
+
+    ax.vlines(stretch_point_ERP/2, ymin=lim['min'].min(), ymax=lim['max'].max(), color='r')
+    plt.ylim(lim['min'].min(), lim['max'].max())
+    plt.title(sujet)
+    plt.legend()
+    # plt.show()
+
+    os.chdir(os.path.join(path_results, 'RESPI', 'plot'))
+    plt.savefig(f"{sujet}_respi_mean.png")
+
+    plt.close('all')
 
 
 
@@ -494,14 +557,21 @@ if __name__ == '__main__':
 
     
     # sujet_list = ['01NM_MW', '02NM_OL', '03NM_MC', '04NM_LS', '05NM_JS', '06NM_HC', '07NM_YB', '08NM_CM', '09NM_CV', '10NM_VA', '11NM_LC', '12NM_PS', '13NM_JP', '14NM_LD',
-    #           '15PH_JS',  '16PH_LP',  '17PH_MN',  '18PH_SB',  '19PH_TH',  '20PH_VA',  '21PH_VS',
-    #           '22IL_NM', '23IL_DG', '24IL_DM', '25IL_DJ', '26IL_DC', '27IL_AP', '28IL_SL', '29IL_LL', '30IL_VR', '31IL_LC', '32IL_MA', '33IL_LY', '34IL_BA', '35IL_CM', '36IL_EA', '37IL_LT']
+    #           '15PH_JS',  '16PH_LP',  '17PH_SB',  '18PH_TH',  '19PH_VA',  '20PH_VS',
+    #           '21IL_NM', '22IL_DG', '23IL_DM', '24IL_DJ', '25IL_DC', '26IL_AP', '27IL_SL', '28IL_LL', '29IL_VR', '30IL_LC', '31IL_MA', '32IL_LY', '33IL_BA', '34IL_CM', '35IL_EA', '36IL_LT',
+    #           '37DL_05', '38DL_06', '39DL_07', '40DL_08', '41DL_11', '42DL_12', '43DL_13', '44DL_14', '45DL_15', '46DL_16', '47DL_17', '48DL_18', '49DL_19', '50DL_20', '51DL_21', '52DL_22',
+    #           '53DL_23', '54DL_24', '55DL_25', '56DL_26', '57DL_27', '58DL_28', '59DL_29', '60DL_30', '61DL_31', '62DL_32', '63DL_34',
+    #           ]
 
-    sujet = '11NM_LC'
+    sujet = '01NM_MW'
 
     for sujet in sujet_list:
 
-        print(sujet)
+        if os.path.exists(os.path.join(path_results, 'RESPI', 'count', f'{sujet}_count_cycles.xlsx')):
+            print(f"{sujet} ALREADY COMPUTED")
+            continue
+        else:
+            print(sujet)
         
         respi_allcond, respfeatures_allcond = load_respfeatures(sujet)
 
@@ -561,6 +631,12 @@ if __name__ == '__main__':
 
         plt.close('all')
 
+        ################################
+        ######## PLOT MEAN RESPI ########
+        ################################
+
+        plot_mean_respi(sujet)
+
 
 
 
@@ -580,5 +656,12 @@ if __name__ == '__main__':
 
     df_count_cycle = df_count_cycle.drop(columns='Unnamed: 0')
 
-    df_count_cycle.query(f"cond == 'VS'").median()
-    df_count_cycle.query(f"cond == 'CHARGE'").median()
+    plt.hist(df_count_cycle.query(f"cond == 'VS'")['count'].values, bins=20, label='VS', alpha=0.7)
+    plt.hist(df_count_cycle.query(f"cond == 'CHARGE'")['count'].values, bins=20, label='CHARGE', alpha=0.7)
+    plt.xlabel('count')
+    plt.ylabel('n_sujet')
+    plt.title('cycle_count')
+    plt.legend()
+    plt.show()
+
+    plt.savefig('allsujet_cycle_count.png')

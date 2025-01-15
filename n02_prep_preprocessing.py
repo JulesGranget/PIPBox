@@ -24,45 +24,10 @@ debug = False
 ######## OPEN DATA ########
 ################################
 
-def find_common_chan_list():
-
-    ######## ADJUST CHAN LIST ########
-
-    chan_list_all = []
-    for project in project_name_list:
-        chan_list_all.extend(chan_list_project_wise[project])
-
-    chan_list_all = np.unique(np.array(chan_list_all))
-
-    df_chan_list_shared = {'chan' : [], 'NORMATIVE' : [],  'PHYSIOLOGY' : [], 'ITL_LEO' : []}
-
-    for chan in chan_list_all:
-        df_chan_list_shared['chan'].append(chan)
-        df_chan_list_shared['NORMATIVE'].append(chan in chan_list_project_wise['NORMATIVE'])
-        df_chan_list_shared['PHYSIOLOGY'].append(chan in chan_list_project_wise['PHYSIOLOGY'])
-        df_chan_list_shared['ITL_LEO'].append(chan in chan_list_project_wise['ITL_LEO'])
-
-    df_chan_list_shared = pd.DataFrame(df_chan_list_shared)
-
-    shared_list = []
-    for chan in chan_list_all:
-        if df_chan_list_shared.query(f"chan == '{chan}'").values[0,1:].sum() != 3:
-            shared_list.append(False)
-        else:
-            shared_list.append(True)
-
-    df_chan_list_shared['shared'] = shared_list
-
-    os.chdir(path_data)
-    df_chan_list_shared.to_excel('df_chan_shared_across_project.xlsx')
-
-    # df_chan_list_shared.query(f"shared == True")['chan'].values
 
 
 
-
-
-#sujet, cond = sujet_list[0], 'VS'
+#sujet, cond = sujet_list[14], 'VS'
 def open_raw_data(sujet, cond):
 
     ######## identify project and sujet ########        
@@ -95,11 +60,6 @@ def open_raw_data(sujet, cond):
         chan_sel_list_i = [chan_list_project_wise[sujet_project].index(chan) for chan in chan_list_eeg if chan in chan_list_project_wise[sujet_project]]
         _data_eeg = _data_eeg[chan_sel_list_i,:]
 
-        #### chunk
-        _data_eeg = _data_eeg[:,:int(section_time_general*_srate_init)]
-        _respi = _respi[:int(section_time_general*_srate_init)]
-        _trig = _trig[_trig<=int(section_time_general)]
-
     elif sujet_project == 'PHYSIOLOGY':
 
         os.chdir(os.path.join(path_data, sujet_project, sujet_init_name))
@@ -127,16 +87,12 @@ def open_raw_data(sujet, cond):
         _data_eeg = _data_eeg[chan_sel_list_i,:]
 
         #### chunk cond
-        if cond == 'VS':
-            _data_eeg = _data_eeg[:,:int(section_time_general*_srate_init)]
-            _respi = _respi[:int(section_time_general*_srate_init)]
-            _trig = _trig[_trig<=int(section_time_general)]
-
-        elif cond == 'CHARGE':
-            _data_eeg = _data_eeg[:,int(section_timming_PHYSIOLOGY[sujet][cond][0]*_srate_init):int((section_timming_PHYSIOLOGY[sujet][cond][0]+section_time_general)*_srate_init)]
-            _respi = _respi[int(section_timming_PHYSIOLOGY[sujet][cond][0]*_srate_init):int((section_timming_PHYSIOLOGY[sujet][cond][0]+section_time_general)*_srate_init)]
-            _trig = _trig[(_trig>=int(section_timming_PHYSIOLOGY[sujet][cond][0])) & (_trig<=int(section_timming_PHYSIOLOGY[sujet][cond][0]+section_time_general))]
-            _trig -= section_timming_PHYSIOLOGY[sujet][cond][0]
+        start, stop = int(section_timming_PHYSIOLOGY[sujet][cond][0]*_srate_init), int(section_timming_PHYSIOLOGY[sujet][cond][1]*_srate_init)
+        
+        _data_eeg = _data_eeg[:,start:stop]
+        _respi = _respi[start:stop]
+        _trig = _trig[(_trig>=section_timming_PHYSIOLOGY[sujet][cond][0]) & (_trig<=section_timming_PHYSIOLOGY[sujet][cond][1])]
+        _trig -= start
 
         if debug:
 
@@ -173,10 +129,46 @@ def open_raw_data(sujet, cond):
         chan_sel_list_i = [chan_list_project_wise[sujet_project].index(chan) for chan in chan_list_eeg if chan in chan_list_project_wise[sujet_project]]
         _data_eeg = _data_eeg[chan_sel_list_i,:]
 
-        #### chunk
-        _data_eeg = _data_eeg[:,:int(section_time_general*_srate_init)]
-        _respi = _respi[:int(section_time_general*_srate_init)]
-        _trig = _trig[_trig<=int(section_time_general)]
+    elif sujet_project == 'DYSLEARN':
+
+        print(f"OPEN {sujet_project} : {sujet}")
+
+        if cond == 'CHARGE':
+            cond_corrected = 'ITL'
+        else:
+            cond_corrected = cond
+
+        os.chdir(os.path.join(path_data, sujet_project, cond_corrected))
+
+        if sujet_init_name in ['08']:
+            file_open = [file for file in os.listdir() if file.find('vhdr') != -1 and file.find(f"DYSLEARN_00{sujet_init_name}") != -1][-1]
+        else:
+            file_open = [file for file in os.listdir() if file.find('vhdr') != -1 and file.find(f"DYSLEARN_00{sujet_init_name}") != -1][0]    
+
+        _data = mne.io.read_raw_brainvision(file_open)
+        _chan_list_eeg = _data.info['ch_names'][:-3]
+        _data_eeg = _data.get_data()[:-3,:]
+        pression_chan_i = _data.info['ch_names'].index('PRESS')
+        _respi = _data.get_data()[pression_chan_i,:]
+        _srate_init = _data.info['sfreq']
+
+        _trig_onset = _data.annotations.onset
+        _trig_name = _data.annotations.description
+
+        if sujet == '42DL_11':
+            start, stop = int(_trig_onset[np.where(_trig_name == f'Comment/{cond_corrected} DEBUT')[0][0]]*_srate_init), int(_trig_onset[np.where(_trig_name == f'Comment/VS FIN')[0][0]]*_srate_init)
+        else:
+            start, stop = int(_trig_onset[np.where(_trig_name == f'Comment/{cond_corrected} DEBUT')[0][0]]*_srate_init), int(_trig_onset[np.where(_trig_name == f'Comment/{cond_corrected} FIN')[0][0]]*_srate_init)
+        
+        _data_eeg = _data_eeg[:,start:stop]
+        _respi = _respi[start:stop]
+
+        _trig = _trig_onset[(_trig_onset>=start/_srate_init) & (_trig_onset<=stop/_srate_init)]
+        _trig -= start/_srate_init
+
+        #### sel chan 
+        chan_sel_list_i = [chan_list_project_wise[sujet_project].index(chan) for chan in chan_list_eeg if chan in chan_list_project_wise[sujet_project]]
+        _data_eeg = _data_eeg[chan_sel_list_i,:]
 
     ######## ADJUST RESPI ########
     if sujet_respi_adjust[sujet] == 'inverse':
@@ -949,14 +941,16 @@ if __name__== '__main__':
 
             # sujet_list = ['01NM_MW', '02NM_OL', '03NM_MC', '04NM_LS', '05NM_JS', '06NM_HC', '07NM_YB', '08NM_CM', '09NM_CV', '10NM_VA', '11NM_LC', '12NM_PS', '13NM_JP', '14NM_LD',
             #   '15PH_JS',  '16PH_LP',  '17PH_MN',  '18PH_SB',  '19PH_TH',  '20PH_VA',  '21PH_VS',
-            #   '22IL_NM', '23IL_DG', '24IL_DM', '25IL_DJ', '26IL_DC', '27IL_AP', '28IL_SL', '29IL_LL', '30IL_VR', '31IL_LC', '32IL_MA', '33IL_LY', '34IL_BA', '35IL_CM', '36IL_EA', '37IL_LT']
+            #   '22IL_NM', '23IL_DG', '24IL_DM', '25IL_DJ', '26IL_DC', '27IL_AP', '28IL_SL', '29IL_LL', '30IL_VR', '31IL_LC', '32IL_MA', '33IL_LY', '34IL_BA', '35IL_CM', '36IL_EA', '37IL_LT',
+            #   '38DL_05', '39DL_06', '40DL_07', '41DL_08', '42DL_11', '43DL_12', '44DL_13', '45DL_14', '46DL_15', '47DL_16', '48DL_17', '49DL_18', '50DL_19', '51DL_20', '52DL_21', '53DL_22',
+            #   '54DL_23', '55DL_24', '56DL_25', '57DL_26', '58DL_27', '59DL_28', '60DL_29', '61DL_30', '62DL_31', '63DL_32', '64DL_34', '65DL_39',
+            #   ]
 
-
-            # sujet = '32IL_MA'
+            # sujet = '38DL_05'
 
             # cond_list = ['VS', 'CHARGE']
 
-            # cond = 'CHARGE'
+            # cond = 'VS'
 
             if os.path.exists(os.path.join(path_prep, f'{sujet}_{cond}.fif')):
 
@@ -1028,8 +1022,8 @@ if __name__== '__main__':
             #### for one chan
             # compare_pre_post(data_pre=data_eeg, data_post=data_preproc_clean, srate=srate, chan_name='FC5')
 
-            fig_raw.suptitle('raw')
-            fig_post.suptitle('preproc')
+            fig_raw.suptitle(f'{sujet}_{cond}_raw')
+            fig_post.suptitle(f'{sujet}_{cond}_preproc')
 
             plt.show(block=True) 
 
@@ -1055,6 +1049,10 @@ if __name__== '__main__':
             raw_export.save(f'{sujet}_{cond}.fif')
                 
             df_trig.to_excel(f'{sujet}_{cond}_trig.xlsx')
+
+
+
+
 
     ########################################
     ######## AGGREGATES PREPROC ########

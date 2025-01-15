@@ -23,80 +23,186 @@ debug = False
 ######## LOAD DATA ########
 ################################
 
-#sujet, session_i = 'PD01', 1
-def open_raw_data_session(sujet, session_i):
 
-    #### open raw and adjust for sujet
-    os.chdir(os.path.join(path_data, 'eeg'))
+#sujet, cond = sujet_list[14], 'VS'
+def open_raw_data(sujet, cond):
 
-    sujet_eeg_open = sujet[-2:] + sujet[:-2]
+    ######## identify project and sujet ########        
+    sujet_project = sujet_project_nomenclature[sujet[2:4]]
+    sujet_init_name = list(sujet_list_correspondance.keys())[list(sujet_list_correspondance.values()).index(sujet)][3:]
 
-    if sujet_eeg_open == 'NT28' and session_i == 0:
+    ######## OPEN DATA ########
+    if sujet_project == 'NORMATIVE':
 
-        raw = mne.io.read_raw_brainvision(f'{sujet_eeg_open}_ses0{session_i+2}.vhdr', preload=True)
-        raw_2 = mne.io.read_raw_brainvision(f'{sujet_eeg_open}_ses0{session_i+2}_2.vhdr', preload=True)
+        os.chdir(os.path.join(path_data, sujet_project, 'first', sujet_init_name))
 
-        raw = mne.concatenate_raws([raw, raw_2])
+        print(f"OPEN {sujet_project} : {sujet}")
 
-    elif sujet_eeg_open == 'AR30' and session_i == 2:
+        _data = mne.io.read_raw_brainvision(f"{sujet_init_name}_{cond}_ValidICM.vhdr")
+        _chan_list_eeg = _data.info['ch_names'][:-5]
+        _data_eeg = _data.get_data()[:-5,:]
+        pression_chan_i = _data.info['ch_names'].index('Pression')
+        _respi = _data.get_data()[pression_chan_i,:]
+        _srate_init = _data.info['sfreq']
 
-        raw = mne.io.read_raw_brainvision(f'{sujet_eeg_open}_ses0{session_i+2}.vhdr', preload=True)
-        srate = int(raw.info['sfreq'])
-        raw.crop(tmin=1076000/srate, tmax=None)
+        _trig = _data.annotations.onset
 
-    else:
+        if debug:
+            mne.viz.plot_raw(_data, n_channels=1)
 
-        raw = mne.io.read_raw_brainvision(f'{sujet_eeg_open}_ses0{session_i+2}.vhdr', preload=True)
+            plt.plot(_respi)
+            plt.show()
 
-    srate = int(raw.info['sfreq'])
+        #### sel chan 
+        chan_sel_list_i = [chan_list_project_wise[sujet_project].index(chan) for chan in chan_list_eeg if chan in chan_list_project_wise[sujet_project]]
+        _data_eeg = _data_eeg[chan_sel_list_i,:]
 
-    if srate != 500:
-        raise ValueError(f'#### WARNING : {sujet_eeg_open} srate != 500 ####')
+    elif sujet_project == 'PHYSIOLOGY':
 
-    #### Data vizualisation
-    if debug == True :
-        duration = 4.
-        n_chan = 20
-        raw.plot(scalings='auto',duration=duration,n_channels=n_chan)# verify
+        os.chdir(os.path.join(path_data, sujet_project, sujet_init_name))
 
-    #raw.info['ch_names'] # verify
+        print(f"OPEN {sujet_project} : {sujet}")
 
-    #### identify EOG and rename chans
-    # raw[raw.info['ch_names'].index('36'), :] = raw.get_data()[raw.info['ch_names'].index('Fp1'), :]
-    # mne.rename_channels(raw.info, {'36' : 'VEOG'})
+        _data = mne.io.read_raw_brainvision(f"{sujet_init_name}_CONTINU_64Ch_A2Ref.vhdr")
+        if sujet == '21PH_SB':
+            _chan_list_eeg = _data.info['ch_names'][:-4]
+            _data_eeg = _data.get_data()[:-4,:]
+        else:
+            _chan_list_eeg = _data.info['ch_names'][1:-4]
+            _data_eeg = _data.get_data()[1:-4,:]
+        pression_chan_i = _data.info['ch_names'].index('Pression')
+        _respi = _data.get_data()[pression_chan_i,:]
+        _srate_init = _data.info['sfreq']
+
+        _trig = _data.annotations.onset
+
+        if debug:
+            mne.viz.plot_raw(_data, n_channels=1)
+
+        #### sel chan 
+        chan_sel_list_i = [chan_list_project_wise[sujet_project].index(chan) for chan in chan_list_eeg if chan in chan_list_project_wise[sujet_project]]
+        _data_eeg = _data_eeg[chan_sel_list_i,:]
+
+        #### chunk cond
+        start, stop = int(section_timming_PHYSIOLOGY[sujet][cond][0]*_srate_init), int(section_timming_PHYSIOLOGY[sujet][cond][1]*_srate_init)
+        
+        _data_eeg = _data_eeg[:,start:stop]
+        _respi = _respi[start:stop]
+        _trig = _trig[(_trig>=section_timming_PHYSIOLOGY[sujet][cond][0]) & (_trig<=section_timming_PHYSIOLOGY[sujet][cond][1])]
+        _trig -= start
+
+        if debug:
+
+            plt.plot(_respi)
+            plt.vlines(_trig*_srate_init, ymin=_respi.min(), ymax=_respi.max(), color='r')
+            plt.show()
+
+    elif sujet_project == 'ITL_LEO':
+
+        os.chdir(os.path.join(path_data, 'ITL_LEO'))
+
+        print(f"OPEN {sujet_project} : {sujet}")
+
+        if cond == 'VS':
+            cond_to_search = 'VS'
+        elif cond == 'CHARGE':
+            cond_to_search = 'ITL'
+
+        file_name = [file for file in os.listdir() if file.find(sujet_init_name) != -1 and file.find(f'{cond_to_search}.edf') != -1][0]
+        file_name_marker = [file for file in os.listdir() if file.find(sujet_init_name) != -1 and file.find(f'{cond_to_search}.Markers') != -1][0]
+
+        _data = mne.io.read_raw_edf(file_name)
+        _chan_list_eeg = _data.info['ch_names'][:-3]
+        _data_eeg = _data.get_data()[:-3,:]
+        pression_chan_i = _data.info['ch_names'].index('PRESSION')
+        _respi = _data.get_data()[pression_chan_i,:]
+        _srate_init = _data.info['sfreq']
+
+        f = open(file_name_marker, "r")
+        _trig = [int(line.split(',')[2][1:]) for line_i, line in enumerate(f.read().split('\n')) if len(line.split(',')) == 5 and line.split(',')[0] == 'Response']
+        _trig = np.array(_trig) / _srate_init
+
+        #### sel chan 
+        chan_sel_list_i = [chan_list_project_wise[sujet_project].index(chan) for chan in chan_list_eeg if chan in chan_list_project_wise[sujet_project]]
+        _data_eeg = _data_eeg[chan_sel_list_i,:]
+
+    elif sujet_project == 'DYSLEARN':
+
+        print(f"OPEN {sujet_project} : {sujet}")
+
+        if cond == 'CHARGE':
+            cond_corrected = 'ITL'
+        else:
+            cond_corrected = cond
+
+        os.chdir(os.path.join(path_data, sujet_project, cond_corrected))
+
+        if sujet_init_name in ['08']:
+            file_open = [file for file in os.listdir() if file.find('vhdr') != -1 and file.find(f"DYSLEARN_00{sujet_init_name}") != -1][-1]
+        else:
+            file_open = [file for file in os.listdir() if file.find('vhdr') != -1 and file.find(f"DYSLEARN_00{sujet_init_name}") != -1][0]    
+
+        _data = mne.io.read_raw_brainvision(file_open)
+        _chan_list_eeg = _data.info['ch_names'][:-3]
+        _data_eeg = _data.get_data()[:-3,:]
+        pression_chan_i = _data.info['ch_names'].index('PRESS')
+        _respi = _data.get_data()[pression_chan_i,:]
+        _srate_init = _data.info['sfreq']
+
+        _trig_onset = _data.annotations.onset
+        _trig_name = _data.annotations.description
+
+        if sujet == '42DL_11':
+            start, stop = int(_trig_onset[np.where(_trig_name == f'Comment/{cond_corrected} DEBUT')[0][0]]*_srate_init), int(_trig_onset[np.where(_trig_name == f'Comment/VS FIN')[0][0]]*_srate_init)
+        else:
+            start, stop = int(_trig_onset[np.where(_trig_name == f'Comment/{cond_corrected} DEBUT')[0][0]]*_srate_init), int(_trig_onset[np.where(_trig_name == f'Comment/{cond_corrected} FIN')[0][0]]*_srate_init)
+        
+        _data_eeg = _data_eeg[:,start:stop]
+        _respi = _respi[start:stop]
+
+        _trig = _trig_onset[(_trig_onset>=start/_srate_init) & (_trig_onset<=stop/_srate_init)]
+        _trig -= start/_srate_init
+
+        #### sel chan 
+        chan_sel_list_i = [chan_list_project_wise[sujet_project].index(chan) for chan in chan_list_eeg if chan in chan_list_project_wise[sujet_project]]
+        _data_eeg = _data_eeg[chan_sel_list_i,:]
+
+    ######## ADJUST RESPI ########
+    if sujet_respi_adjust[sujet] == 'inverse':
+        _respi *= -1
+
+    ######## RESAMPLE ########
+    if _srate_init != 500:
+
+        #### EEG
+        _time_vec_origin = np.arange(0, _data_eeg.shape[-1]/_srate_init, 1/_srate_init)
+        _time_vec_dwsampled = np.arange(0, _data_eeg.shape[-1]/_srate_init, 1/srate)
+
+        _data_dwsampled = np.zeros((len(chan_list_eeg), _time_vec_dwsampled.shape[0]))
+
+        for chan_i in range(_data_eeg.shape[0]):
+            x = _data_eeg[chan_i,:]
+            x_dwsampled = np.interp(_time_vec_dwsampled, _time_vec_origin, x)
+            _data_dwsampled[chan_i,:] = x_dwsampled
+
+        _data_eeg = _data_dwsampled
+
+        #### AUX
+        _respi = np.interp(_time_vec_dwsampled, _time_vec_origin, _respi) 
+
+    ######## EXTRACT TRIG ########
 
     if debug:
-        data_plot = raw[raw.info['ch_names'].index('Fp1'), :][0][0,:int(1e10)]
-        plt.plot(data_plot)
-        plt.show()
-    
-    #### select raw_eeg
-    raw_eeg = raw.copy()
-    drop_chan = ['PRESS','ECG','TRIG']
-    raw_eeg.info['ch_names']
-    raw_eeg.drop_channels(drop_chan)
 
-    #### select aux chan
-    raw_aux = raw.copy()
-    select_chan = ['PRESS','ECG','TRIG']
-    raw_aux = raw_aux.pick_channels(select_chan)
-
-    if debug:
-        plt.plot(zscore(raw_aux.get_data()[0,:]), label='PRESS')
-        plt.plot(zscore(raw_aux.get_data()[1,:]), label='ECG')
-        plt.plot(zscore(raw_aux.get_data()[2,:]), label='TRIG')
-        plt.legend()
+        time_vec = np.arange(0, _respi.shape[0]/srate, 1/srate)
+            
+        plt.plot(time_vec, _respi)
+        plt.title(f"{sujet}, {cond}")
+        plt.vlines(_trig, ymin=_respi.min(), ymax=_respi.max(), color='r')
         plt.show()
 
-    #### remove trig
-    raw_aux.drop_channels(['TRIG'])
+    return _data_eeg, _respi, _trig
 
-    #raw_eeg.info # verify
-    #raw_aux.info # verify
-    
-    del raw
-
-    return raw_eeg, raw_aux
 
 
 
@@ -112,26 +218,21 @@ def open_raw_data_session(sujet, session_i):
 
 
 
-def viewer_one_sujet(sujet, cond, odor, chan_selection, filter=False, raw_signals=False):
+def viewer_one_sujet(sujet, cond, chan_selection, filter=False, raw_signals=False):
 
     #### params
     chan_list_i = [chan_i for chan_i, chan in enumerate(chan_list) if chan in chan_selection]
-    chan_list_i.insert(0, chan_list.index('PRESS'))
-    chan_list_i.insert(0, chan_list.index('ECG'))
-
-    session_i = list(odor_order[sujet].values()).index(odor)
+    chan_list_i.insert(0, np.where(chan_list == 'pression' )[0][0])
 
     #### load data
     print('load')
     if raw_signals:
-        raw_eeg, raw_aux = open_raw_data_session(sujet, session_i)
-        data = np.concatenate((raw_eeg.get_data(), raw_aux.get_data()), axis=0)[chan_list_i,:]
+        _data_eeg, _respi, _trig = open_raw_data(sujet, cond)
+        data = np.concatenate((_data_eeg, _respi.reshape(1,-1)), axis=0)[chan_list_i,:]
     else:
-        data = load_data_sujet(sujet, cond, odor)[chan_list_i,:]
+        data = load_data_sujet(sujet, cond)[chan_list_i,:]
 
-    trig = pd.read_excel(os.path.join(path_prep, sujet, 'info', f"{sujet}_{session_i}_trig.xlsx")).drop(columns=['Unnamed: 0'])
-
-    chan_labels = ['ecg', 'respi']
+    chan_labels = ['respi']
     chan_labels.extend([f"{chan}" for chan_i, chan in enumerate(chan_selection)])
 
     if debug:
@@ -139,7 +240,7 @@ def viewer_one_sujet(sujet, cond, odor, chan_selection, filter=False, raw_signal
         plt.plot(data[0,:])
         plt.show()
 
-        respfeatures = load_respfeatures(sujet)[cond][odor]
+        respfeatures = load_respfeatures(sujet)[cond]
 
         _x = zscore(data[-1,:])
         _respi = zscore(data[1,:])+5
@@ -153,22 +254,6 @@ def viewer_one_sujet(sujet, cond, odor, chan_selection, filter=False, raw_signal
         plt.scatter(respfeatures['expi_index'], _x[respfeatures['expi_index']], color='b', label='expi', s=s, zorder=1)
         plt.legend()
         plt.show()
-
-    #### get trig
-    trig_data = {'cond' : [], 'start' : [], 'stop' : []}
-    for _cond in conditions:
-        _start = [i for i in trig.query(f"name == '{_cond}'")['time'].values[0][1:-1].split(' ') if len(i) != 0]
-        _start = int(_start[0])/srate
-        _stop = [i for i in trig.query(f"name == '{_cond}'")['time'].values[0][1:-1].split(' ') if len(i) != 0]
-        _stop = int(_stop[1])/srate
-        trig_data['cond'].append(cond)
-        trig_data['start'].append(_start)
-        trig_data['stop'].append(_stop)
-    trig = pd.DataFrame(trig_data)
-
-    #### crop if raw signals
-    if raw_signals and cond != 'allcond':
-        data = data[:,int(trig.query(f" cond == '{cond}'")['start'].values[0]*srate):int(trig.query(f" cond == '{cond}'")['stop'].values[0]*srate)]
 
     #### downsample
     print('resample')
@@ -227,11 +312,7 @@ def viewer_one_sujet(sujet, cond, odor, chan_selection, filter=False, raw_signal
     
         ax.plot(time_vec_resample, zscore(x)+3*(chan_i+2), label=chan_labels[chan_i+2])
 
-        if cond == 'allcond':
-            ax.vlines(trig['start'].values, ymin=zscore(respi).min(), ymax=(zscore(x)+3*(chan_i+2)).max(), colors='g', label='start')
-            ax.vlines(trig['stop'].values, ymin=zscore(respi).min(), ymax=(zscore(x)+3*(chan_i+2)).max(), colors='r', label='stop')
-
-        ax.set_title(f"{sujet} {cond} {odor} raw:{raw_signals}")
+        ax.set_title(f"{sujet} {cond} raw:{raw_signals}")
         plt.legend()
         handles, labels = ax.get_legend_handles_labels()
         ax.legend(reversed(handles), reversed(labels), loc='upper left')  # reverse to keep order consistent
@@ -275,12 +356,8 @@ def viewer_one_sujet(sujet, cond, odor, chan_selection, filter=False, raw_signal
                 x = scipy.signal.filtfilt(filtkern,1,x)
 
             ax.plot(time_vec_resample, zscore(x)+3*(chan_count+2), label=chan_labels[chan_i])
-
-        if cond == 'allcond':
-            ax.vlines(trig['start'].values, ymin=zscore(respi).min(), ymax=(zscore(x)+3*(chan_count+2)).max(), colors='g', label='start')
-            ax.vlines(trig['stop'].values, ymin=zscore(respi).min(), ymax=(zscore(x)+3*(chan_count+2)).max(), colors='r', label='stop')
         
-        ax.set_title(f"{sujet} {cond} {odor} raw:{raw_signals}")
+        ax.set_title(f"{sujet} {cond} raw:{raw_signals}")
         plt.legend()
         handles, labels = ax.get_legend_handles_labels()
         ax.legend(reversed(handles), reversed(labels), loc='upper left')  # reverse to keep order consistent
@@ -296,32 +373,28 @@ def viewer_one_sujet(sujet, cond, odor, chan_selection, filter=False, raw_signal
 if __name__ == '__main__':
 
     #### sujet
-    sujet_list = ['01PD','02MJ','03VN','04GB','05LV','06EF','07PB','08DM','09TA','10BH','11FA','12BD','13FP',
-    '14MD','15LG','16GM','17JR','18SE','19TM','20TY','21ZV','22DI','23LF','24TJ','25DF','26MN','27BD','28NT','29SC',
-    '30AR','31HJ','32CM','33MA']
+    sujet_list = ['01NM_MW', '02NM_OL', '03NM_MC', '04NM_LS', '05NM_JS', '06NM_HC', '07NM_YB', '08NM_CM', '09NM_CV', '10NM_VA', '11NM_LC', '12NM_PS', '13NM_JP', '14NM_LD',
+              '15PH_JS',  '16PH_LP',  '17PH_MN',  '18PH_SB',  '19PH_TH',  '20PH_VA',  '21PH_VS',
+              '22IL_NM', '23IL_DG', '24IL_DM', '25IL_DJ', '26IL_DC', '27IL_AP', '28IL_SL', '29IL_LL', '30IL_VR', '31IL_LC', '32IL_MA', '33IL_LY', '34IL_BA', '35IL_CM', '36IL_EA', '37IL_LT',
+              '38DL_05', '39DL_06', '40DL_07', '41DL_08', '42DL_11', '43DL_12', '44DL_13', '45DL_14', '46DL_15', '47DL_16', '48DL_17', '49DL_18', '50DL_19', '51DL_20', '52DL_21', '53DL_22',
+              '54DL_23', '55DL_24', '56DL_25', '57DL_26', '58DL_27', '59DL_28', '60DL_29', '61DL_30', '62DL_31', '63DL_32', '64DL_34',
+              ]
 
-    sujet = '01PD'
+    sujet = '41DL_08'
 
-    #### cond
-    cond = 'allcond'
-    
-    cond = 'FR_CV_1'
-    cond = 'MECA'
-    cond = 'CO2'
-    cond = 'FR_CV_2'
+    #### cond    
+    cond = 'VS'
+    cond = 'CHARGE'
 
-    #### odor
-    odor = 'o'
-    odor = '+'
-    odor = '-'
 
     #### chan
-    chan_list = ['Fp1', 'Fz', 'F3', 'F7', 'FT9', 'FC5', 'FC1', 'C3', 'T7', 'TP9', 'CP5', 'CP1', 'Pz', 'P3', 'P7', 'O1', 
-            'Oz', 'O2', 'P4', 'P8', 'TP10', 'CP6', 'CP2', 'Cz', 'C4', 'T8', 'FT10', 'FC6', 'FC2', 'F4', 'F8', 'Fp2', 
-            'PRESS', 'ECG', 'ECG_cR']
+    chan_list = ['C3', 'C4', 'CP1', 'CP2', 'CP5', 'CP6', 'Cz', 'F3', 'F4', 'F7',
+       'F8', 'FC1', 'FC2', 'FC5', 'FC6', 'Fp2', 'Fz', 'O1', 'O2', 'Oz',
+       'P3', 'P4', 'P7', 'P8', 'Pz', 'T7', 'T8']
 
-    chan_selection = ['Fp1', 'Fz', 'F3', 'F7', 'FT9', 'FC5', 'FC1', 'C3', 'T7', 'TP9', 'CP5', 'CP1', 'Pz', 'P3', 'P7', 'O1']
-    chan_selection = ['Oz', 'O2', 'P4', 'P8', 'TP10', 'CP6', 'CP2', 'Cz', 'C4', 'T8', 'FT10', 'FC6', 'FC2', 'F4', 'F8', 'Fp2']
+    chan_selection = ['C3', 'C4', 'CP1', 'CP2', 'CP5', 'CP6', 'Cz', 'F3', 'F4', 'F7',
+       'F8', 'FC1', 'FC2', 'FC5', 'FC6', 'Fp2', 'Fz', 'O1', 'O2', 'Oz',
+       'P3', 'P4', 'P7', 'P8', 'Pz', 'T7', 'T8']
 
     chan_selection = ['C3']
 
@@ -330,6 +403,6 @@ if __name__ == '__main__':
     raw_signals = True
     raw_signals = False
 
-    viewer_one_sujet(sujet, cond, odor, chan_selection, filter=filter, raw_signals=raw_signals)
+    viewer_one_sujet(sujet, cond, chan_selection, filter=filter, raw_signals=raw_signals)
 
 

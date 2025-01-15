@@ -11,6 +11,8 @@ import stat
 import subprocess
 import xarray as xr
 import physio
+import paramiko
+import getpass
 
 from bycycle.cyclepoints import find_extrema
 import neurokit2 as nk
@@ -203,6 +205,134 @@ def generate_folder_structure(sujet):
     
 
 
+################################################
+######## DATA MANAGEMENT CLUSTER ########
+################################################
+
+
+def sync_folders__push_to_mnt(clusterexecution=True):
+
+    #### need to be exectuted outside of cluster to work
+    folder_to_push_to = {path_data : os.path.join(path_mntdata, 'Data'), path_precompute : os.path.join(path_mntdata, 'Analyses', 'precompute'), 
+                         path_prep : os.path.join(path_mntdata, 'Analyses', 'preprocessing'), path_main_workdir : os.path.join(path_mntdata, 'Scripts'),
+                         path_slurm : os.path.join(path_mntdata, 'Scripts_slurm')}
+
+    if clusterexecution:
+            
+        #### We push from A to B
+        for folder_local, folder_remote in folder_to_push_to.items():
+
+            subprocess.run([f"rsync -avz --delete -v {folder_local}/ {folder_remote}/"], shell=True)
+
+    else:
+
+        hostname_local = '10.69.168.93'
+        port = 22
+        username = 'jules.granget'
+
+        # Create an SSH client
+        ssh_client = paramiko.SSHClient()
+        
+        # Automatically add the server's SSH key (if not already known)
+        ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+        # Prompt for the SSH password
+        password = getpass.getpass(prompt="Enter your SSH password: ")
+        
+        try:
+            # Connect to the remote machine
+            print(f"Connecting to {hostname_local}...")
+            ssh_client.connect(hostname_local, port=port, username=username, password=password)
+            print("Connection established.")
+
+            #### test
+            if debug:
+
+                #### A to B
+                sync_from_remote_to_local = f"rsync -avz --delete -v {os.path.join(path_general, 'test')}/ {os.path.join(path_mntdata, 'test')}/"
+                stdin, stdout, stderr = ssh_client.exec_command(sync_from_remote_to_local)
+                output = stdout.read().decode()
+                print(output)
+
+                #### B to A
+                sync_from_remote_to_local = f"rsync -avz --delete -v {os.path.join(path_mntdata, 'test')}/ {os.path.join(path_general, 'test')}/"
+                stdin, stdout, stderr = ssh_client.exec_command(sync_from_remote_to_local)
+                output = stdout.read().decode()
+                print(output)
+
+            #### We push from A to B
+            for folder_local, folder_remote in folder_to_push_to.items():
+
+                sync_from_remote_to_local = f"rsync -avz --delete -v {folder_local}/ {folder_remote}/"
+                stdin, stdout, stderr = ssh_client.exec_command(sync_from_remote_to_local)
+                output = stdout.read().decode()
+                print(output)
+
+        except:
+            print(f"An error occurred")
+
+
+
+def sync_folders__push_to_crnldata(clusterexecution=True):
+
+    #### dont push scripts from mnt to crnldata
+    folder_to_push_to = {path_data : os.path.join(path_mntdata, 'Data'), path_precompute : os.path.join(path_mntdata, 'Analyses', 'precompute'), 
+                         path_prep : os.path.join(path_mntdata, 'Analyses', 'preprocessing'), path_slurm : os.path.join(path_mntdata, 'Scripts_slurm')}
+
+    if clusterexecution:
+            
+        #### We push from A to B
+        for folder_local, folder_remote in folder_to_push_to.items():
+
+            subprocess.run([f"rsync -avz --delete -v {folder_remote}/ {folder_local}/"], shell=True)
+
+    else:
+
+        hostname_local = '10.69.168.93'
+        port = 22
+        username = 'jules.granget'
+
+        # Create an SSH client
+        ssh_client = paramiko.SSHClient()
+        
+        # Automatically add the server's SSH key (if not already known)
+        ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+        # Prompt for the SSH password
+        password = getpass.getpass(prompt="Enter your SSH password: ")
+        
+        try:
+            # Connect to the remote machine
+            print(f"Connecting to {hostname_local}...")
+            ssh_client.connect(hostname_local, port=port, username=username, password=password)
+            print("Connection established.")
+
+            #### test
+            if debug:
+
+                #### A to B
+                sync_from_remote_to_local = f"rsync -avz --delete -v {os.path.join(path_general, 'test')}/ {os.path.join(path_mntdata, 'test')}/"
+                stdin, stdout, stderr = ssh_client.exec_command(sync_from_remote_to_local)
+                output = stdout.read().decode()
+                print(output)
+
+                #### B to A
+                sync_from_remote_to_local = f"rsync -avz --delete -v {os.path.join(path_mntdata, 'test')}/ {os.path.join(path_general, 'test')}/"
+                stdin, stdout, stderr = ssh_client.exec_command(sync_from_remote_to_local)
+                output = stdout.read().decode()
+                print(output)
+
+            #### We push from A to B
+            for folder_local, folder_remote in folder_to_push_to.items():
+
+                sync_from_remote_to_local = f"rsync -avz --delete -v {folder_remote}/ {folder_local}/"
+                stdin, stdout, stderr = ssh_client.exec_command(sync_from_remote_to_local)
+                output = stdout.read().decode()
+                print(output)
+        
+        except:
+            print(f"An error occurred")
+
 
 
 
@@ -213,71 +343,10 @@ def generate_folder_structure(sujet):
 ################################
 
 
-#name_script, name_function, params = 'test', 'slurm_test',  ['Pilote', 2]
-def execute_function_in_slurm(name_script, name_function, params):
+#name_script, name_function, params = 'n05_precompute_TF', 'precompute_tf_all_conv', [sujet]
+def execute_function_in_slurm_bash(name_script, name_function, params, n_core=15, mem='15G'):
 
-    python = sys.executable
-
-    #### params to print in script
-    params_str = ""
-    for params_i in params:
-        if isinstance(params_i, str):
-            str_i = f"'{params_i}'"
-        else:
-            str_i = str(params_i)
-
-        if params_i == params[0] :
-            params_str = params_str + str_i
-        else:
-            params_str = params_str + ' , ' + str_i
-
-    #### params to print in script name
-    params_str_name = ''
-    for params_i in params:
-
-        str_i = str(params_i)
-
-        if params_i == params[0] :
-            params_str_name = params_str_name + str_i
-        else:
-            params_str_name = params_str_name + '_' + str_i
-    
-    #### script text
-    lines = [f'#! {python}']
-    lines += ['import sys']
-    lines += [f"sys.path.append('{path_main_workdir}')"]
-    lines += [f'from {name_script} import {name_function}']
-    lines += [f'{name_function}({params_str})']
-
-    cpus_per_task = n_core_slurms
-    mem = mem_crnl_cluster
-        
-    #### write script and execute
-    os.chdir(path_slurm)
-    slurm_script_name =  f"run_function_{name_function}_{params_str_name}.py" #add params
-        
-    with open(slurm_script_name, 'w') as f:
-        f.writelines('\n'.join(lines))
-        os.fchmod(f.fileno(), mode = stat.S_IRWXU)
-        f.close()
-        
-    subprocess.Popen(['sbatch', f'{slurm_script_name}', f'-cpus-per-task={n_core_slurms}', f'-mem={mem_crnl_cluster}']) 
-
-    # wait subprocess to lauch before removing
-    #time.sleep(3)
-    #os.remove(slurm_script_name)
-
-    print(f'#### slurm submission : from {name_script} execute {name_function}({params})')
-
-
-
-
-
-
-#name_script, name_function, params = 'n7_precompute_TF', 'precompute_tf', [cond, session_i, freq_band_list, band_prep_list]
-def execute_function_in_slurm_bash(name_script, name_function, params):
-
-    scritp_path = os.getcwd()
+    script_path = os.getcwd()
     
     python = sys.executable
 
@@ -315,12 +384,9 @@ def execute_function_in_slurm_bash(name_script, name_function, params):
     #### script text
     lines = [f'#! {python}']
     lines += ['import sys']
-    lines += [f"sys.path.append('{path_main_workdir}')"]
+    lines += [f"sys.path.append('{os.path.join(path_mntdata, 'Scripts')}')"]
     lines += [f'from {name_script} import {name_function}']
     lines += [f'{name_function}({params_str})']
-
-    cpus_per_task = n_core_slurms
-    mem = mem_crnl_cluster
         
     #### write script and execute
     os.chdir(path_slurm)
@@ -335,21 +401,25 @@ def execute_function_in_slurm_bash(name_script, name_function, params):
     lines = ['#!/bin/bash']
     lines += [f'#SBATCH --job-name={name_function}']
     lines += [f'#SBATCH --output=%slurm_{name_function}_{params_str_name}.log']
-    lines += [f'#SBATCH --cpus-per-task={n_core_slurms}']
-    lines += [f'#SBATCH --mem={mem_crnl_cluster}']
-    lines += [f'srun {python} {os.path.join(path_slurm, slurm_script_name)}']
+    lines += [f'#SBATCH --cpus-per-task={n_core}']
+    lines += [f'#SBATCH --mem={mem}']
+    lines += [f"srun {python} {os.path.join(path_mntdata, 'Scripts_slurm', slurm_script_name)}"]
         
     #### write script and execute
-    slurm_bash_script_name =  f"bash__{name_function}__{params_str_name}.batch" #add params
+    slurm_bash_script_name =  f"bash__{name_function}__{params_str_name}.sh" #add params
         
     with open(slurm_bash_script_name, 'w') as f:
         f.writelines('\n'.join(lines))
         os.fchmod(f.fileno(), mode = stat.S_IRWXU)
         f.close()
 
+    ###synchro
+    sync_folders__push_to_mnt()
+
     #### execute bash
     print(f'#### slurm submission : from {name_script} execute {name_function}({params})')
-    subprocess.Popen(['sbatch', f'{slurm_bash_script_name}']) 
+    os.chdir(os.path.join(path_mntdata, 'Scripts_slurm'))
+    subprocess.run([f'sbatch {slurm_bash_script_name}'], shell=True) 
 
     # wait subprocess to lauch before removing
     #time.sleep(4)
@@ -357,97 +427,7 @@ def execute_function_in_slurm_bash(name_script, name_function, params):
     #os.remove(slurm_bash_script_name)
 
     #### get back to original path
-    os.chdir(scritp_path)
-
-
-
-
-#name_script, name_function, params = 'n9_fc_analysis', 'compute_pli_ispc_allband', [sujet]
-def execute_function_in_slurm_bash_mem_choice(name_script, name_function, params, mem_required):
-
-    scritp_path = os.getcwd()
-    
-    python = sys.executable
-
-    #### params to print in script
-    params_str = ""
-    for i, params_i in enumerate(params):
-        if isinstance(params_i, str):
-            str_i = f"'{params_i}'"
-        else:
-            str_i = str(params_i)
-
-        if i == 0 :
-            params_str = params_str + str_i
-        else:
-            params_str = params_str + ' , ' + str_i
-
-    #### params to print in script name
-    params_str_name = ''
-    for i, params_i in enumerate(params):
-
-        str_i = str(params_i)
-
-        if i == 0 :
-            params_str_name = params_str_name + str_i
-        else:
-            params_str_name = params_str_name + '_' + str_i
-
-    #### remove all txt that block name save
-    for txt_remove_i in ["'", "[", "]", "{", "}", ":", " ", ","]:
-        if txt_remove_i == " " or txt_remove_i == ",":
-            params_str_name = params_str_name.replace(txt_remove_i, '_')
-        else:
-            params_str_name = params_str_name.replace(txt_remove_i, '')
-    
-    #### script text
-    lines = [f'#! {python}']
-    lines += ['import sys']
-    lines += [f"sys.path.append('{path_main_workdir}')"]
-    lines += [f'from {name_script} import {name_function}']
-    lines += [f'{name_function}({params_str})']
-
-    cpus_per_task = n_core_slurms
-    mem = mem_crnl_cluster
-        
-    #### write script and execute
-    os.chdir(path_slurm)
-    slurm_script_name =  f"run__{name_function}__{params_str_name}.py" #add params
-        
-    with open(slurm_script_name, 'w') as f:
-        f.writelines('\n'.join(lines))
-        os.fchmod(f.fileno(), mode = stat.S_IRWXU)
-        f.close()
-    
-    #### script text
-    lines = ['#!/bin/bash']
-    lines += [f'#SBATCH --job-name={name_function}']
-    lines += [f'#SBATCH --output=%slurm_{name_function}_{params_str_name}.log']
-    lines += [f'#SBATCH --cpus-per-task={n_core_slurms}']
-    lines += [f'#SBATCH --mem={mem_required}']
-    lines += [f'srun {python} {os.path.join(path_slurm, slurm_script_name)}']
-        
-    #### write script and execute
-    slurm_bash_script_name =  f"bash__{name_function}__{params_str_name}.batch" #add params
-        
-    with open(slurm_bash_script_name, 'w') as f:
-        f.writelines('\n'.join(lines))
-        os.fchmod(f.fileno(), mode = stat.S_IRWXU)
-        f.close()
-
-    #### execute bash
-    print(f'#### slurm submission : from {name_script} execute {name_function}({params})')
-    subprocess.Popen(['sbatch', f'{slurm_bash_script_name}']) 
-
-    # wait subprocess to lauch before removing
-    #time.sleep(4)
-    #os.remove(slurm_script_name)
-    #os.remove(slurm_bash_script_name)
-
-    #### get back to original path
-    os.chdir(scritp_path)
-
-
+    os.chdir(script_path)
 
 
 
@@ -1023,44 +1003,46 @@ def rscore_mat(x):
 
 
 #tf_conv = tf_median_cycle[nchan, :, :]
-def norm_tf(sujet, tf_conv, odor_i, norm_method):
+def norm_tf(sujet, tf_conv, norm_method):
 
     path_source = os.getcwd()
+
+    chan_list_sel = chan_list_eeg_short
 
     if norm_method not in ['rscore', 'zscore']:
 
         #### load baseline
         os.chdir(os.path.join(path_precompute, sujet, 'baselines'))
 
-        baselines = xr.open_dataarray(f'{sujet}_{odor_i}_baselines.nc')
+        baselines = xr.open_dataarray(f'{sujet}_baselines.nc')
 
     if norm_method == 'dB':
 
-        for n_chan_i, n_chan in enumerate(chan_list_eeg):
+        for n_chan_i, n_chan in enumerate(chan_list_sel):
 
             tf_conv[n_chan_i,:,:] = 10*np.log10(tf_conv[n_chan_i,:,:] / baselines.loc[n_chan, :, 'median'].values.reshape(-1,1))
 
     if norm_method == 'zscore_baseline':
 
-        for n_chan_i, n_chan in enumerate(chan_list_eeg):
+        for n_chan_i, n_chan in enumerate(chan_list_sel):
 
             tf_conv[n_chan_i,:,:] = (tf_conv[n_chan_i,:,:] - baselines.loc[n_chan,:,'mean'].values.reshape(-1,1)) / baselines.loc[n_chan,:,'std'].values.reshape(-1,1)
                 
     if norm_method == 'rscore_baseline':
 
-        for n_chan_i, n_chan in enumerate(chan_list_eeg):
+        for n_chan_i, n_chan in enumerate(chan_list_sel):
 
             tf_conv[n_chan_i,:,:] = (tf_conv[n_chan_i,:,:] - baselines.loc[n_chan,:,'median'].values.reshape(-1,1)) * 0.6745 / baselines.loc[n_chan,:,'mad'].values.reshape(-1,1)
 
     if norm_method == 'zscore':
 
-        for n_chan_i, n_chan in enumerate(chan_list_eeg):
+        for n_chan_i, n_chan in enumerate(chan_list_sel):
 
             tf_conv[n_chan_i,:,:] = zscore_mat(tf_conv[n_chan_i,:,:])
                 
     if norm_method == 'rscore':
 
-        for n_chan_i, n_chan in enumerate(chan_list_eeg):
+        for n_chan_i, n_chan in enumerate(chan_list_sel):
 
             tf_conv[n_chan_i,:,:] = rscore_mat(tf_conv[n_chan_i,:,:])
 
@@ -1069,7 +1051,7 @@ def norm_tf(sujet, tf_conv, odor_i, norm_method):
     if debug:
 
         nchan = 0
-        nchan_name = chan_list_eeg[nchan]
+        nchan_name = chan_list_sel[nchan]
 
         fig, axs = plt.subplots(ncols=2)
         axs[0].set_title('mean std')

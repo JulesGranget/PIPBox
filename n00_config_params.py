@@ -1,49 +1,55 @@
 
 import numpy as np
-import scipy.signal
-
 
 
 ################################
 ######## GENERAL PARAMS ######## 
 ################################
 
-teleworking = False
-
-enable_big_execute = False
-perso_repo_computation = False
-
 srate = 500
 
-project_name_list_raw = ['COVEM_ITL', 'NORMATIVE', 'PHYSIOLOGY', 'SLP', 'ITL_LEO']
-project_name_list = ['NORMATIVE', 'PHYSIOLOGY', 'ITL_LEO']
+project_name_list_raw = ['COVEM_ITL', 'NORMATIVE', 'PHYSIOLOGY', 'SLP', 'ITL_LEO','DYSLEARN']
+project_name_list = ['NORMATIVE', 'PHYSIOLOGY', 'ITL_LEO', 'DYSLEARN']
 
 sujet_list_project_wise = {'COVEM_ITL': ['01NM', '02HM', '03DG', '04DM', '05DR', '06DJ', '07DC', '08AP', '09SL', '10LL', '11VR', '12LC', '13NN', '14MA', '15LY', '16BA', '17CM', '18EA', '19LT'],
                       'NORMATIVE' : ['MW02', 'OL04', 'MC05', 'LS07', 'JS08', 'HC09', 'YB10', 'CM12', 'CV13', 'VA14', 'LC15', 'PS16', 'JP19', 'LD20'], 
                       'PHYSIOLOGY' : ['JS08',  'LP26',  'MN23',  'SB27',  'TH24',  'VA14',  'VS06'], 
                       'SLP' : ['AB33', 'BK35', 'CD28', 'ES32', 'JC30', 'MM34', 'SG29', 'ZM31'],
-                      'ITL_LEO' : ['01NM', '03DG', '04DM', '06DJ', '07DC', '08AP', '09SL', '10LL', '11VR', '12LC', '14MA', '15LY', '16BA', '17CM', '18EA', '19LT']}
+                      'ITL_LEO' : ['01NM', '03DG', '04DM', '06DJ', '07DC', '08AP', '09SL', '10LL', '11VR', '12LC', '14MA', '15LY', '16BA', '17CM', '18EA', '19LT'],
+                      'DYSLEARN' : ['05','06','07','08','11','12','13','14','15','16','17','18','19','20','21','22','23','24','25','26','27','28','29','30','31','32','34']
+                      }
 
 sujet_list = ['01NM_MW', '02NM_OL', '03NM_MC', '04NM_LS', '05NM_JS', '06NM_HC', '07NM_YB', '08NM_CM', '09NM_CV', '10NM_VA', '11NM_LC', '12NM_PS', '13NM_JP', '14NM_LD',
-              '15PH_JS',  '16PH_LP',  '17PH_MN',  '18PH_SB',  '19PH_TH',  '20PH_VA',  '21PH_VS',
-              '22IL_NM', '23IL_DG', '24IL_DM', '25IL_DJ', '26IL_DC', '27IL_AP', '28IL_SL', '29IL_LL', '30IL_VR', '31IL_LC', '32IL_MA', '33IL_LY', '34IL_BA', '35IL_CM', '36IL_EA', '37IL_LT']
+              '15PH_JS',  '16PH_LP',  '17PH_SB',  '18PH_TH',  '19PH_VA',  '20PH_VS',
+              '21IL_NM', '22IL_DG', '23IL_DM', '24IL_DJ', '25IL_DC', '26IL_AP', '27IL_SL', '28IL_LL', '29IL_VR', '30IL_LC', '31IL_MA', '32IL_LY', '33IL_BA', '34IL_CM', '35IL_EA', '36IL_LT',
+              '37DL_05', '38DL_06', '39DL_07', '40DL_08', '41DL_11', '42DL_12', '43DL_13', '44DL_14', '45DL_15', '46DL_16', '47DL_17', '48DL_18', '49DL_19', '50DL_20', '51DL_21', '52DL_22',
+              '53DL_23', '54DL_24', '55DL_25', '56DL_26', '57DL_27', '58DL_28', '59DL_29', '60DL_30', '61DL_31', '62DL_32', '63DL_34',
+              ]
 
 cond_list = ['VS', 'CHARGE']
 
-sujet_project_nomenclature = {'NM' : 'NORMATIVE', 'PH' : 'PHYSIOLOGY', 'IL' : 'ITL_LEO'}
+sujet_project_nomenclature = {'NM' : 'NORMATIVE', 'PH' : 'PHYSIOLOGY', 'IL' : 'ITL_LEO', 'DL' : 'DYSLEARN'}
 
 sujet_list_correspondance = {'NM_MW02' : '01NM_MW', 'NM_OL04' : '02NM_OL', 'NM_MC05' : '03NM_MC', 'NM_LS07' : '04NM_LS', 'NM_JS08' : '05NM_JS', 'NM_HC09' : '06NM_HC', 
                              'NM_YB10' : '07NM_YB', 'NM_CM12' : '08NM_CM', 'NM_CV13' : '09NM_CV', 'NM_VA14' : '10NM_VA', 'NM_LC15' : '11NM_LC', 'NM_PS16' : '12NM_PS', 
-                             'NM_JP19' : '13NM_JP', 'NM_LD20' : '14NM_LD', 'PH_JS08' : '15PH_JS', 'PH_LP26' : '16PH_LP', 'PH_MN23' : '17PH_MN', 'PH_SB27' : '18PH_SB',
-                             'PH_TH24' : '19PH_TH', 'PH_VA14' : '20PH_VA', 'PH_VS06' : '21PH_VS', 'IL_01NM' : '22IL_NM', 'IL_03DG' : '23IL_DG', 'IL_04DM' : '24IL_DM', 
-                             'IL_06DJ' : '25IL_DJ', 'IL_07DC' : '26IL_DC', 'IL_08AP' : '27IL_AP', 'IL_09SL' : '28IL_SL', 'IL_10LL' : '29IL_LL', 'IL_11VR' : '30IL_VR', 
-                             'IL_12LC' : '31IL_LC', 'IL_14MA' : '32IL_MA', 'IL_15LY' : '33IL_LY', 'IL_16BA' : '34IL_BA', 'IL_17CM' : '35IL_CM', 'IL_18EA' : '36IL_EA', 'IL_19LT' : '37IL_LT'}
+                             'NM_JP19' : '13NM_JP', 'NM_LD20' : '14NM_LD', 'PH_JS08' : '15PH_JS', 'PH_LP26' : '16PH_LP', 'PH_SB27' : '18=7PH_SB',
+                             'PH_TH24' : '18PH_TH', 'PH_VA14' : '19PH_VA', 'PH_VS06' : '20PH_VS', 'IL_01NM' : '21IL_NM', 'IL_03DG' : '22IL_DG', 'IL_04DM' : '23IL_DM', 
+                             'IL_06DJ' : '24IL_DJ', 'IL_07DC' : '25IL_DC', 'IL_08AP' : '26IL_AP', 'IL_09SL' : '27IL_SL', 'IL_10LL' : '28IL_LL', 'IL_11VR' : '29IL_VR', 
+                             'IL_12LC' : '30IL_LC', 'IL_14MA' : '31IL_MA', 'IL_15LY' : '32IL_LY', 'IL_16BA' : '33IL_BA', 'IL_17CM' : '34IL_CM', 'IL_18EA' : '35IL_EA', 
+                             'IL_19LT' : '36IL_LT',
+                             'DL_05' : '37DL_05', 'DL_06' : '38DL_06', 'DL_07' : '39DL_07', 'DL_08' : '40DL_08', 'DL_11' : '41DL_11', 'DL_12' : '42DL_12', 
+                             'DL_13' : '43DL_13', 'DL_14' : '44DL_14', 'DL_15' : '45DL_15', 'DL_16' : '46DL_16', 'DL_17' : '47DL_17', 'DL_18' : '48DL_18',
+                             'DL_19' : '49DL_19', 'DL_20' : '50DL_20', 'DL_21' : '51DL_21', 'DL_22' : '52DL_22', 'DL_23' : '53DL_23', 'DL_24' : '54DL_24', 
+                             'DL_25' : '55DL_25', 'DL_26' : '56DL_26', 'DL_27' : '57DL_27', 'DL_28' : '58DL_28', 'DL_29' : '59DL_29', 'DL_30' : '60DL_30', 
+                             'DL_31' : '61DL_31', 'DL_32' : '62DL_32', 'DL_34' : '63DL_34',
+                             }
 
 chan_list_project_wise = {'COVEM_ITL': ['FC1', 'FC2', 'Cz', 'C2', 'CP1', 'CP2', 'EMG'],
-                      'NORMATIVE' : ['Fp1', 'F7', 'F3', 'Fz', 'FC5', 'FC1', 'A1', 'T7', 'C3', 'Cz', 'TP9', 'CP5', 'CP1', 'P7', 'P3', 'Pz', 'Fp2', 'F4', 'F8', 'FC2', 'FC6', 'C4', 'T8', 'A2', 'CP2', 'CP6', 'TP10', 'P4', 'P8', 'O1', 'Oz', 'O2', 'Debit', 'Pression', 'EMG PS', 'ECG', 'FCz'], 
-                      'PHYSIOLOGY' : ['EOG', 'Fp2', 'F7', 'F3', 'Fz', 'F4', 'F8', 'FC5', 'FC1', 'FC2', 'FC6', 'T7', 'C3', 'Cz', 'C4', 'T8', 'TP9', 'CP5', 'CP1', 'CP2', 'CP6', 'TP10', 'P7', 'P3', 'Pz', 'P4', 'P8', 'PO9', 'O1', 'Oz', 'O2', 'FCz', 'AF7', 'AF3', 'AF4', 'AF8', 'F5', 'F1', 'F2', 'F6', 'FT9', 'FT7', 'FC3', 'FC4', 'FT8', 'FT10', 'C5', 'C1', 'C2', 'C6', 'TP7', 'CP3', 'CPz', 'CP4', 'TP8', 'P5', 'P1', 'P2', 'P6', 'PO7', 'PO3', 'POz', 'PO4', 'PO8', 'Debit', 'Pression', 'PS', 'ECG'], 
-                      'SLP' : ['Fp1', 'Fp2', 'F7', 'F3', 'Fz', 'F4', 'F8', 'FC5', 'FC1', 'FC2', 'FC6', 'T7', 'C3', 'Cz', 'C4', 'T8', 'TP9', 'CP5', 'CP1', 'CP2', 'CP6', 'TP10', 'P7', 'P3', 'Pz', 'P4', 'P8', 'PO9', 'O1', 'Oz', 'O2', 'FCz', 'AF7', 'AF3', 'AF4', 'AF8', 'F5', 'F1', 'F2', 'F6', 'FT9', 'FT7', 'FC3', 'FC4', 'FT8', 'FT10', 'C5', 'C1', 'C2', 'C6', 'TP7', 'CP3', 'CPz', 'CP4', 'TP8', 'P5', 'P1', 'P2', 'P6', 'PO7', 'PO3', 'POz', 'PO4', 'PO8', 'ECG', 'ScalEMG'],
-                      'ITL_LEO' : ['Fp1', 'Fp2', 'F7', 'F3', 'Fz', 'F4', 'F8', 'FC5', 'FC1', 'FC2', 'FC6', 'T7', 'C3', 'Cz', 'C4', 'T8', 'A1', 'CP5', 'CP1', 'CP2', 'CP6', 'A2', 'P7', 'P3', 'Pz', 'P4', 'P8', 'O1', 'Oz', 'O2', 'EOG', 'EMG', 'PRESSION']}
+                        'NORMATIVE' : ['Fp1', 'F7', 'F3', 'Fz', 'FC5', 'FC1', 'A1', 'T7', 'C3', 'Cz', 'TP9', 'CP5', 'CP1', 'P7', 'P3', 'Pz', 'Fp2', 'F4', 'F8', 'FC2', 'FC6', 'C4', 'T8', 'A2', 'CP2', 'CP6', 'TP10', 'P4', 'P8', 'O1', 'Oz', 'O2', 'Debit', 'Pression', 'EMG PS', 'ECG', 'FCz'], 
+                        'PHYSIOLOGY' : ['EOG', 'Fp2', 'F7', 'F3', 'Fz', 'F4', 'F8', 'FC5', 'FC1', 'FC2', 'FC6', 'T7', 'C3', 'Cz', 'C4', 'T8', 'TP9', 'CP5', 'CP1', 'CP2', 'CP6', 'TP10', 'P7', 'P3', 'Pz', 'P4', 'P8', 'PO9', 'O1', 'Oz', 'O2', 'FCz', 'AF7', 'AF3', 'AF4', 'AF8', 'F5', 'F1', 'F2', 'F6', 'FT9', 'FT7', 'FC3', 'FC4', 'FT8', 'FT10', 'C5', 'C1', 'C2', 'C6', 'TP7', 'CP3', 'CPz', 'CP4', 'TP8', 'P5', 'P1', 'P2', 'P6', 'PO7', 'PO3', 'POz', 'PO4', 'PO8', 'Debit', 'Pression', 'PS', 'ECG'], 
+                        'SLP' : ['Fp1', 'Fp2', 'F7', 'F3', 'Fz', 'F4', 'F8', 'FC5', 'FC1', 'FC2', 'FC6', 'T7', 'C3', 'Cz', 'C4', 'T8', 'TP9', 'CP5', 'CP1', 'CP2', 'CP6', 'TP10', 'P7', 'P3', 'Pz', 'P4', 'P8', 'PO9', 'O1', 'Oz', 'O2', 'FCz', 'AF7', 'AF3', 'AF4', 'AF8', 'F5', 'F1', 'F2', 'F6', 'FT9', 'FT7', 'FC3', 'FC4', 'FT8', 'FT10', 'C5', 'C1', 'C2', 'C6', 'TP7', 'CP3', 'CPz', 'CP4', 'TP8', 'P5', 'P1', 'P2', 'P6', 'PO7', 'PO3', 'POz', 'PO4', 'PO8', 'ECG', 'ScalEMG'],
+                        'ITL_LEO' : ['Fp1', 'Fp2', 'F7', 'F3', 'Fz', 'F4', 'F8', 'FC5', 'FC1', 'FC2', 'FC6', 'T7', 'C3', 'Cz', 'C4', 'T8', 'A1', 'CP5', 'CP1', 'CP2', 'CP6', 'A2', 'P7', 'P3', 'Pz', 'P4', 'P8', 'O1', 'Oz', 'O2', 'EOG', 'EMG', 'PRESSION'],
+                        'DYSLEARN' : ['Fp1', 'Fz', 'F3', 'F7', 'FT9', 'FC5', 'FC1', 'C3', 'T7', 'TP9', 'CP5', 'CP1', 'Pz', 'P3', 'P7', 'O1', 'Oz', 'O2', 'P4', 'P8', 'TP10', 'CP6', 'CP2', 'Cz', 'C4', 'T8', 'FT10', 'FC6', 'FC2', 'F4', 'F8', 'Fp2', 'PRESS', 'ECG', 'TRIG']}
 
 chan_list = np.array(['C3', 'C4', 'CP1', 'CP2', 'CP5', 'CP6', 'Cz', 'F3', 'F4', 'F7',
        'F8', 'FC1', 'FC2', 'FC5', 'FC6', 'Fp2', 'Fz', 'O1', 'O2', 'Oz',
@@ -62,9 +68,10 @@ chan_list_eeg_short = np.array(['C3', 'C4', 'CP1', 'CP2', 'Cz', 'F3', 'F4', 'FC1
 
 condition_list_project_wise = {'COVEM_ITL': ['CHARGE'],
                       'NORMATIVE' : ['CHARGE', 'PETITE CHARGE', 'ARTIFACT', 'SNIFS', 'VS', 'VS2'], 
-                      'PHYSIOLOGY' : ['CHARGE'], 
+                      'PHYSIOLOGY' : ['VS', 'CHARGE'], 
                       'SLP' : ['CHARGE'],
-                       'ITL_LEO' : ['VS', 'CO2', 'ITL']}
+                       'ITL_LEO' : ['VS', 'CO2', 'ITL'],
+                       'DYSLEARN' : ['VS', 'ITL']}
 
 params_extraction_data = {'COVEM_ITL' : {'time_cutoff' : 13},
                       'NORMATIVE' : { 'time_cutoff' : {'CHARGE' : 0, 'SNIFS' : 0, 'VS' : 0}},
@@ -97,23 +104,17 @@ if PC_ID == 'LAPTOP-EI7OSP7K':
     if teleworking:
 
         PC_working = 'Jules_VPN'
-        if perso_repo_computation:
-            path_main_workdir = '/home/jules/Bureau/perso_repo_computation/Script_Python_EEG_Paris_git'
-        else:    
-            path_main_workdir = 'Z:\\Projets\\PPI_Jules\\Scripts'
+        path_main_workdir = 'Z:\\Projets\\PPI_Jules\\Scripts'
         path_general = 'Z:\\Projets\\PPI_Jules'
-        path_memmap = 'Z:\\Projets\\PPI_Jules\\Mmap'
+        path_memmap = 'Z:\\Projets\\PPI_Jules\\memmap'
         n_core = 4
 
     else:
 
         PC_working = 'Jules_VPN'
-        if perso_repo_computation:
-            path_main_workdir = '/home/jules/Bureau/perso_repo_computation/Script_Python_EEG_Paris_git'
-        else:    
-            path_main_workdir = 'N:\\cmo\Projets\\PPI_Jules\\Scripts'
-        path_general = 'N:\\cmo\\Projets\\PPI_Jules'
-        path_memmap = 'N:\\cmo\\Projets\\PPI_Jules\\Mmap'
+        path_main_workdir = 'N:\\Projets\\PPI_Jules\\Scripts'
+        path_general = 'N:\\Projets\\PPI_Jules'
+        path_memmap = 'N:\\Projets\\PPI_Jules\\memmap'
         n_core = 4
 
     
@@ -121,34 +122,25 @@ if PC_ID == 'LAPTOP-EI7OSP7K':
 elif PC_ID == 'DESKTOP-3IJUK7R':
 
     PC_working = 'Jules_Labo_Win'
-    if perso_repo_computation:
-        path_main_workdir = 'D:\\LPPR_CMO_PROJECT\\Lyon'
-    else:    
-        path_main_workdir = 'D:\\LPPR_CMO_PROJECT\\Lyon'
+    path_main_workdir = 'D:\\LPPR_CMO_PROJECT\\Lyon'
     path_general = 'D:\\LPPR_CMO_PROJECT\\Lyon'
-    path_memmap = 'D:\\LPPR_CMO_PROJECT\\Lyon\\Mmap'
+    path_memmap = 'D:\\LPPR_CMO_PROJECT\\Lyon\\memmap'
     n_core = 2
 
 elif PC_ID == 'pc-jules' or PC_ID == 'LAPTOP-EI7OSP7K':
 
     PC_working = 'Jules_Labo_Linux'
-    if perso_repo_computation:
-        path_main_workdir = '/home/jules/Bureau/perso_repo_computation/Scripts'
-    else:    
-        path_main_workdir = '/home/jules/smb4k/CRNLDATA/crnldata/cmo/Projets/PPI_Jules/Scripts'
+    path_main_workdir = '/home/jules/smb4k/CRNLDATA/crnldata/cmo/Projets/PPI_Jules/Scripts'
     path_general = '/home/jules/smb4k/CRNLDATA/crnldata/cmo/Projets/PPI_Jules'
-    path_memmap = '/home/jules/smb4k/CRNLDATA/crnldata/cmo/Projets/PPI_Jules/Mmap'
+    path_memmap = '/home/jules/smb4k/CRNLDATA/crnldata/cmo/Projets/PPI_Jules/memmap'
     n_core = 4
 
 elif PC_ID == 'pc-valentin':
 
     PC_working = 'Valentin_Labo_Linux'
-    if perso_repo_computation:
-        path_main_workdir = '/home/valentin/Bureau/perso_repo_computation/Script_Python_EEG_Paris_git'
-    else:    
-        path_main_workdir = '/home/valentin/smb4k/CRNLDATA/crnldata/cmo/Projets/Olfadys/NBuonviso2022_jules_olfadys/EEG_Paris_J/Script_Python_EEG_Paris_git'
+    path_main_workdir = '/home/valentin/smb4k/CRNLDATA/crnldata/cmo/Projets/Olfadys/NBuonviso2022_jules_olfadys/EEG_Paris_J/Script_Python_EEG_Paris_git'
     path_general = '/home/valentin/smb4k/CRNLDATA/crnldata/cmo/Projets/Olfadys/NBuonviso2022_jules_olfadys/EEG_Paris_J'
-    path_memmap = '/home/valentin/smb4k/CRNLDATA/crnldata/cmo/Projets/Olfadys/NBuonviso2022_jules_olfadys/EEG_Paris_J/Mmap'
+    path_memmap = '/home/valentin/smb4k/CRNLDATA/crnldata/cmo/Projets/Olfadys/NBuonviso2022_jules_olfadys/EEG_Paris_J/memmap'
     n_core = 6
 
 elif PC_ID == 'nodeGPU':
@@ -156,23 +148,41 @@ elif PC_ID == 'nodeGPU':
     PC_working = 'nodeGPU'
     path_main_workdir = '/crnldata/cmo/Projets/Olfadys/NBuonviso2022_jules_olfadys/EEG_Paris_J/Script_Python_EEG_Paris_git'
     path_general = '/crnldata/cmo/Projets/Olfadys/NBuonviso2022_jules_olfadys/EEG_Paris_J'
-    path_memmap = '/mnt/data/julesgranget'
+    path_memmap = '/mnt/data/julesgranget/memmap'
+    n_core = 15
+
+#### interactif node from cluster
+elif PC_ID == 'node14':
+
+    PC_working = 'node14'
+    path_main_workdir = '/crnldata/cmo/Projets/PPI_Jules/Scripts'
+    path_general = '/crnldata/cmo/Projets/PPI_Jules'
+    path_memmap = '/crnldata/cmo/Projets/memmap'
+    n_core = 15
+
+#### non interactif node from cluster
+elif PC_ID == 'node13':
+
+    PC_working = 'node13'
+    path_main_workdir = '/mnt/data/julesgranget/PIPBox/Scripts'
+    path_general = '/mnt/data/julesgranget/PIPBox'
+    path_memmap = '/mnt/data/julesgranget/memmap'
     n_core = 15
 
 else:
 
-    PC_working = 'crnl_cluster'
-    path_main_workdir = '/crnldata/cmo/Projets/PPI_Jules/Scripts'
-    path_general = '/crnldata/cmo/Projets/PPI_Jules'
-    path_memmap = '/mnt/data/julesgranget'
-    n_core = 10
+    PC_working = 'node13'
+    path_main_workdir = '/mnt/data/julesgranget/PIPBox/Scripts'
+    path_general = '/mnt/data/julesgranget/PIPBox'
+    path_memmap = '/mnt/data/julesgranget/memmap'
+    n_core = 15
     
-
+path_mntdata = '/mnt/data/julesgranget/PIPBox'
 path_data = os.path.join(path_general, 'Data')
 path_prep = os.path.join(path_general, 'Analyses', 'preprocessing')
 path_precompute = os.path.join(path_general, 'Analyses', 'precompute') 
 path_results = os.path.join(path_general, 'Analyses', 'results') 
-path_slurm = os.path.join(path_general, 'Script_slurm')
+path_slurm = os.path.join(path_general, 'Scripts_slurm')
 
 os.chdir(init_workdir)
 
@@ -195,13 +205,21 @@ sujet_respi_adjust = {
 '01NM_MW':'normal',   '02NM_OL':'normal',   '03NM_MC':'normal',   '04NM_LS':'normal',
 '05NM_JS':'normal',   '06NM_HC':'normal',   '07NM_YB':'normal',   '08NM_CM':'normal',
 '09NM_CV':'normal',   '10NM_VA':'normal',   '11NM_LC':'normal',   '12NM_PS':'normal',  
-'13NM_JP':'normal',   '14NM_LD':'normal',   '15PH_JS':'inverse',   '16PH_LP':'normal',   '17PH_MN':'inverse',
-'18PH_SB':'normal',   '19PH_TH':'inverse',   '20PH_VA':'inverse',   '21PH_VS':'inverse',   '22IL_NM':'inverse',
-'23IL_DG':'inverse',   '24IL_DM':'inverse',   '25IL_DJ':'inverse',
-'26IL_DC':'inverse',   '27IL_AP':'inverse',   '28IL_SL':'inverse',   '29IL_LL':'inverse',   '30IL_VR':'inverse',
-'31IL_LC':'inverse',   '32IL_MA':'inverse',   '33IL_LY':'inverse',   '34IL_BA':'inverse',   '35IL_CM':'inverse',   
-'36IL_EA':'inverse',   '37IL_LT':'inverse'
+'13NM_JP':'normal',   '14NM_LD':'normal',   '15PH_JS':'inverse',   '16PH_LP':'normal',   
+'17PH_SB':'normal',   '18PH_TH':'inverse',   '19PH_VA':'inverse',   
+'20PH_VS':'inverse',   '21IL_NM':'inverse', '22IL_DG':'inverse',   '23IL_DM':'inverse',   
+'24IL_DJ':'inverse',   '25IL_DC':'inverse',   '26IL_AP':'inverse',   '27IL_SL':'inverse',   
+'28IL_LL':'inverse',   '29IL_VR':'inverse',   '30IL_LC':'inverse',   '31IL_MA':'inverse',   
+'32IL_LY':'inverse',   '33IL_BA':'inverse',   '34IL_CM':'inverse',   '35IL_EA':'inverse',   
+'36IL_LT':'inverse',   '37DL_05':'inverse',   '38DL_06':'inverse',   '39DL_07':'inverse',   
+'40DL_08':'inverse',   '41DL_11':'inverse',   '42DL_12':'inverse',   '43DL_13':'inverse',   
+'44DL_14':'inverse',   '45DL_15':'inverse',   '46DL_16':'inverse',   '47DL_17':'inverse',   
+'48DL_18':'inverse',   '49DL_19':'inverse',   '50DL_20':'inverse',   '51DL_21':'inverse',   
+'52DL_22':'inverse',   '53DL_23':'inverse',   '54DL_24':'inverse',   '55DL_25':'inverse',   
+'56DL_26':'inverse',   '57DL_27':'inverse',   '58DL_28':'inverse',   '59DL_29':'inverse',   
+'60DL_30':'inverse',   '61DL_31':'inverse',   '62DL_32':'inverse',   '63DL_34':'inverse',
 }
+
 
 
 cycle_detection_params = {
@@ -222,9 +240,9 @@ cycle_detection_params = {
 section_time_general = 300 #sec
 
 section_timming_PHYSIOLOGY = {
-'15PH_JS': {'VS' : [0, 613], 'CHARGE' : [644, 1280]},   '16PH_LP': {'VS' : [0, 610], 'CHARGE' : [700, 1340]},   '17PH_MN': {'VS' : [0, 610], 'CHARGE' : [655, 1340]}, 
-'18PH_SB': {'VS' : [0, 610], 'CHARGE' : [680, 1311]},   '19PH_TH': {'VS' : [0, 620], 'CHARGE' : [650, 1280]},   '20PH_VA': {'VS' : [0, 610], 'CHARGE' : [630, 1250]},   
-'21PH_VS': {'VS' : [0, 635], 'CHARGE' : [720, 1340]}
+'15PH_JS': {'VS' : [0, 613], 'CHARGE' : [644, 1280]},   '16PH_LP': {'VS' : [0, 610], 'CHARGE' : [700, 1340]}, 
+'17PH_SB': {'VS' : [0, 610], 'CHARGE' : [680, 1311]},   '18PH_TH': {'VS' : [0, 620], 'CHARGE' : [650, 1280]},   '19PH_VA': {'VS' : [0, 610], 'CHARGE' : [630, 1250]},   
+'20PH_VS': {'VS' : [0, 635], 'CHARGE' : [720, 1340]}
 }
 
 

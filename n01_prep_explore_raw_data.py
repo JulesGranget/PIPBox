@@ -11,6 +11,7 @@ import mne
 import pandas as pd
 import xarray as xr
 import json
+import seaborn as sns
 
 from n00_config_params import *
 
@@ -28,7 +29,7 @@ def export_all_df_alldata():
 
     df_info_data = pd.DataFrame()
 
-    #project = project_name_list_raw[3]
+    #project = project_name_list_raw[0]
     for project in project_name_list_raw:
 
         ######## COVEM ITL ########
@@ -116,14 +117,15 @@ def export_all_df_alldata():
                 _chan_list = _data.info['ch_names']
                 _lowpass = _data.info['lowpass']
 
-                cond = 'CHARGE/VS'
+                #cond = condition_list_project_wise[project][1]
+                for cond in condition_list_project_wise[project]:
 
-                if debug:
-                    _data.info
+                    _sujet_phy = [_sujet_phy for _sujet_phy in list(section_timming_PHYSIOLOGY.keys()) if _sujet_phy.find(_sujet[:2]) != -1][0]
+                    _time_cond = section_timming_PHYSIOLOGY[_sujet_phy][cond][-1] - section_timming_PHYSIOLOGY[_sujet_phy][cond][0]
 
-                df_info_data = pd.concat([df_info_data, pd.DataFrame({'project' : [project], 'sujet' : [_sujet], 'cond' : [cond], 'data_shape' : [f"{_data_extract.shape[0]}/{_data_extract.shape[-1]}"], 
-                                                                    'length.min' : [_data_extract.shape[-1]/_srate/60], 'srate' : [_srate], 'nchan' : [len(_chan_list)], 'chan_list' : [_chan_list], 
-                                                                    'ref' : [np.nan], 'ground' : [np.nan], 'lowpass' : [_lowpass]})])
+                    df_info_data = pd.concat([df_info_data, pd.DataFrame({'project' : [project], 'sujet' : [_sujet], 'cond' : [cond], 'data_shape' : [f"{_data_extract.shape[0]}/{_data_extract.shape[-1]}"], 
+                                                                        'length.min' : [_time_cond/60], 'srate' : [_srate], 'nchan' : [len(_chan_list)], 'chan_list' : [_chan_list], 
+                                                                        'ref' : [np.nan], 'ground' : [np.nan], 'lowpass' : [_lowpass]})])
 
         ######## SLP ########        
 
@@ -182,17 +184,54 @@ def export_all_df_alldata():
                                                                         'length.min' : [_data_extract.shape[-1]/_srate/60], 'srate' : [_srate], 'nchan' : [len(_chan_list)], 'chan_list' : [_chan_list], 
                                                                         'ref' : [np.nan], 'ground' : [np.nan], 'lowpass' : [_lowpass]})])
 
+        ######## DYSLEARN ########
+
+        if project == 'DYSLEARN':
+                    
+            #_sujet_i, _sujet = 0, sujet_list_project_wise[project][-1]
+            for _sujet_i, _sujet in enumerate(sujet_list_project_wise[project]):
+
+                print(f"OPEN {project} : {_sujet}")
+                
+                #cond = condition_list_project_wise[project][1]
+                for cond in condition_list_project_wise[project]:
+
+                    os.chdir(os.path.join(path_data, project, cond))
+
+                    if _sujet in ['08']:
+                        file_open = [file for file in os.listdir() if file.find('vhdr') != -1 and file.find(f"DYSLEARN_00{_sujet}") != -1][-1]
+                    else:
+                        file_open = [file for file in os.listdir() if file.find('vhdr') != -1 and file.find(f"DYSLEARN_00{_sujet}") != -1][0]    
+                    _data = mne.io.read_raw_brainvision(file_open)
+                    _data_extract = _data.get_data()
+                    _srate = _data.info['sfreq']
+                    _chan_list = _data.info['ch_names']
+                    _lowpass = _data.info['lowpass']
+
+                    _trig_onset = _data.annotations.onset
+                    _trig_name = _data.annotations.description
+
+                    if _sujet == '11':
+                        start, stop = int(_trig_onset[np.where(_trig_name == f'Comment/{cond} DEBUT')[0][0]]*_srate), int(_trig_onset[np.where(_trig_name == f'Comment/VS FIN')[0][0]]*_srate)
+                    else:
+                        start, stop = int(_trig_onset[np.where(_trig_name == f'Comment/{cond} DEBUT')[0][0]]*_srate), int(_trig_onset[np.where(_trig_name == f'Comment/{cond} FIN')[0][0]]*_srate)
+                    _data_extract = _data_extract[:,start:stop]
+
+                    if debug:
+                        _data.info
+
+                    df_info_data = pd.concat([df_info_data, pd.DataFrame({'project' : [project], 'sujet' : [_sujet], 'cond' : [cond], 'data_shape' : [f"{_data_extract.shape[0]}/{_data_extract.shape[-1]}"], 
+                                                                        'length.min' : [_data_extract.shape[-1]/_srate/60], 'srate' : [_srate], 'nchan' : [len(_chan_list)], 'chan_list' : [_chan_list], 
+                                                                            'ref' : [np.nan], 'ground' : [np.nan], 'lowpass' : [_lowpass]})])
 
     ######## SAVE DF ALLDATA ########  
     os.chdir(path_data)
     df_info_data.to_excel('df_info_alldata.xlsx')
 
 
-
-
 def explore_all_data():
 
-    #project = project_name_list_raw[2]
+    #project = project_name_list_raw[-1]
     for project in project_name_list_raw:
 
         ######## COVEM ITL ########
@@ -395,40 +434,83 @@ def explore_all_data():
                         plt.title(_sujet)
                         plt.show()
 
+        ######## DYSLEARN ########
 
-def compare_chan_list():
+        if project == 'DYSLEARN':
+                    
+            #_sujet_i, _sujet = 0, sujet_list_project_wise[project][0]
+            for _sujet_i, _sujet in enumerate(sujet_list_project_wise[project][2:]):
 
-    chan_list_allsujet = {}
+                print(f"OPEN {project} : {_sujet}")
+                
+                #cond = condition_list_project_wise[project][0]
+                for cond in condition_list_project_wise[project]:
 
-    cond = 'VS'
+                    os.chdir(os.path.join(path_data, project, cond))
 
-    for sujet in sujet_list:
+                    if _sujet in ['08']:
+                        file_open = [file for file in os.listdir() if file.find('vhdr') != -1 and file.find(f"DYSLEARN_00{_sujet}") != -1][-1]
+                    else:
+                        file_open = [file for file in os.listdir() if file.find('vhdr') != -1 and file.find(f"DYSLEARN_00{_sujet}") != -1][0]    
+                    _data = mne.io.read_raw_brainvision(file_open)
+                    _data_extract = _data.get_data()
+                    _srate = _data.info['sfreq']
+                    _chan_list = _data.info['ch_names']
+                    _lowpass = _data.info['lowpass']
 
-        ######## identify project and sujet ########        
-        sujet_project = sujet_project_nomenclature[sujet[2:4]]
-        sujet_init_name = list(sujet_list_correspondance.keys())[list(sujet_list_correspondance.values()).index(sujet)]
+                    _trig_onset = _data.annotations.onset
+                    _trig_name = _data.annotations.description
 
-        ######## OPEN DATA ########
-        if sujet_project == 'NORMATIVE':
+                    if _sujet == '11':
+                        start, stop = int(_trig_onset[np.where(_trig_name == f'Comment/{cond} DEBUT')[0][0]]*_srate), int(_trig_onset[np.where(_trig_name == f'Comment/VS FIN')[0][0]]*_srate)
+                    else:
+                        start, stop = int(_trig_onset[np.where(_trig_name == f'Comment/{cond} DEBUT')[0][0]]*_srate), int(_trig_onset[np.where(_trig_name == f'Comment/{cond} FIN')[0][0]]*_srate)
+                    _data_extract = _data_extract[:,start:stop]
+                    _respi = _data_extract[_chan_list.index('PRESS'),:]
+                    _trig_onset = _trig_onset[(_trig_onset>=start/_srate) & (_trig_onset<=stop/_srate)]
+                    _trig_onset -= start/_srate
 
-            os.chdir(os.path.join(path_data, sujet_project, 'first', sujet_init_name))
-            _data = mne.io.read_raw_brainvision(f"{sujet_init_name}_{cond}_ValidICM.vhdr")
-            _chan_list = _data.info['ch_names']
+                    plt.plot(np.arange(_respi.size)/_srate, _respi)
+                    plt.title(f"{_sujet} {cond}")
+                    plt.vlines(_trig_onset, ymin=_respi.min(), ymax=_respi.max(), color='r')
+                    plt.show()
 
-        elif sujet_project == 'PHYSIOLOGY':
 
-            os.chdir(os.path.join(path_data, sujet_project, sujet_init_name))
-            _data = mne.io.read_raw_brainvision(f"{sujet_init_name}_CONTINU_64Ch_A2Ref.vhdr")
-            _chan_list_eeg = _data.info['ch_names']
 
-        elif sujet_project == 'ITL_LEO':
+def find_common_chan_list():
 
-            os.chdir(os.path.join(path_data, 'ITL_LEO'))
-            file_name = [file for file in os.listdir() if file.find(sujet_init_name) != -1 and file.find(f'{cond}.edf') != -1][0]
-            _data = mne.io.read_raw_edf(file_name)
-            _chan_list_eeg = _data.info['ch_names']
+    ######## ADJUST CHAN LIST ########
 
-        chan_list_allsujet[sujet] = _chan_list_eeg
+    chan_list_all = []
+    for project in project_name_list:
+        chan_list_all.extend(chan_list_project_wise[project])
+
+    chan_list_all = np.unique(np.array(chan_list_all))
+
+    df_chan_list_shared = {'chan' : [], 'NORMATIVE' : [],  'PHYSIOLOGY' : [], 'ITL_LEO' : [], 'DYSLEARN' : []}
+
+    for chan in chan_list_all:
+        df_chan_list_shared['chan'].append(chan)
+        df_chan_list_shared['NORMATIVE'].append(chan in chan_list_project_wise['NORMATIVE'])
+        df_chan_list_shared['PHYSIOLOGY'].append(chan in chan_list_project_wise['PHYSIOLOGY'])
+        df_chan_list_shared['ITL_LEO'].append(chan in chan_list_project_wise['ITL_LEO'])
+        df_chan_list_shared['DYSLEARN'].append(chan in chan_list_project_wise['DYSLEARN'])
+
+    df_chan_list_shared = pd.DataFrame(df_chan_list_shared)
+
+    shared_list = []
+    for chan in chan_list_all:
+        if df_chan_list_shared.query(f"chan == '{chan}'").values[0,1:].sum() != 4:
+            shared_list.append(False)
+        else:
+            shared_list.append(True)
+
+    df_chan_list_shared['shared'] = shared_list
+
+    os.chdir(path_data)
+    df_chan_list_shared.to_excel('df_chan_shared_across_project.xlsx')
+
+    # df_chan_list_shared.query(f"shared == True")['chan'].values
             
 
 
@@ -444,6 +526,5 @@ if __name__ == '__main__':
 
     explore_all_data()
 
-    compare_chan_list()
-
+    find_common_chan_list()
 
