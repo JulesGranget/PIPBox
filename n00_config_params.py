@@ -148,7 +148,7 @@ elif PC_ID == 'nodeGPU':
     PC_working = 'nodeGPU'
     path_main_workdir = '/crnldata/cmo/Projets/Olfadys/NBuonviso2022_jules_olfadys/EEG_Paris_J/Script_Python_EEG_Paris_git'
     path_general = '/crnldata/cmo/Projets/Olfadys/NBuonviso2022_jules_olfadys/EEG_Paris_J'
-    path_memmap = '/mnt/data/julesgranget/memmap'
+    path_memmap = '/mnt/data/julesgranget/EEG_Paris_J/memmap'
     n_core = 15
 
 #### interactif node from cluster
@@ -157,7 +157,7 @@ elif PC_ID == 'node14':
     PC_working = 'node14'
     path_main_workdir = '/crnldata/cmo/Projets/PPI_Jules/Scripts'
     path_general = '/crnldata/cmo/Projets/PPI_Jules'
-    path_memmap = '/crnldata/cmo/Projets/memmap'
+    path_memmap = '/crnldata/cmo/Projets/PPI_Jules/memmap'
     n_core = 15
 
 #### non interactif node from cluster
@@ -166,7 +166,7 @@ elif PC_ID == 'node13':
     PC_working = 'node13'
     path_main_workdir = '/mnt/data/julesgranget/PIPBox/Scripts'
     path_general = '/mnt/data/julesgranget/PIPBox'
-    path_memmap = '/mnt/data/julesgranget/memmap'
+    path_memmap = '/mnt/data/julesgranget/PIPBox/memmap'
     n_core = 15
 
 else:
@@ -174,7 +174,7 @@ else:
     PC_working = 'node13'
     path_main_workdir = '/mnt/data/julesgranget/PIPBox/Scripts'
     path_general = '/mnt/data/julesgranget/PIPBox'
-    path_memmap = '/mnt/data/julesgranget/memmap'
+    path_memmap = '/mnt/data/julesgranget/PIPBox/memmap'
     n_core = 15
     
 path_mntdata = '/mnt/data/julesgranget/PIPBox'

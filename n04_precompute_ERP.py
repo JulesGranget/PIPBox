@@ -28,45 +28,6 @@ debug = False
 
 
 
-########################
-######## FILTER ########
-########################
-
-#sig = data
-def iirfilt(sig, srate, lowcut=None, highcut=None, order=4, ftype='butter', verbose=False, show=False, axis=0):
-
-    if len(sig.shape) == 1:
-
-        axis = 0
-
-    if lowcut is None and not highcut is None:
-        btype = 'lowpass'
-        cut = highcut
-
-    if not lowcut is None and highcut is None:
-        btype = 'highpass'
-        cut = lowcut
-
-    if not lowcut is None and not highcut is None:
-        btype = 'bandpass'
-
-    if btype in ('bandpass', 'bandstop'):
-        band = [lowcut, highcut]
-        assert len(band) == 2
-        Wn = [e / srate * 2 for e in band]
-    else:
-        Wn = float(cut) / srate * 2
-
-    filter_mode = 'sos'
-    sos = scipy.signal.iirfilter(order, Wn, analog=False, btype=btype, ftype=ftype, output=filter_mode)
-
-    filtered_sig = scipy.signal.sosfiltfilt(sos, sig, axis=axis)
-
-    return filtered_sig
-
-
-
-
 
 
 

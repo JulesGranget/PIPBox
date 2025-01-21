@@ -836,6 +836,16 @@ def modify_name(chan_list):
 ########################################
 
 
+#x = data_mat[sujet_i,pair_i,:]
+def shuffle_sig(x):
+
+    cut = np.random.randint(low=0, high=len(x), size=1)[0]
+    x_cut1 = x[:cut]
+    x_cut2 = x[cut:]
+    x_shift = np.concatenate((x_cut2, x_cut1), axis=0)
+
+    return x_shift
+    
 
 def shuffle_CycleFreq(x):
 
@@ -921,6 +931,44 @@ def get_MVL(x):
     return MVL
 
 
+
+
+def get_MI_2sig(x, y):
+
+    #### Freedman and Diaconis rule
+    nbins_x = int(np.ceil((x.max() - x.min()) / (2 * scipy.stats.iqr(x)*(x.size**(-1/3)))))
+    nbins_y = int(np.ceil((y.max() - y.min()) / (2 * scipy.stats.iqr(y)*(y.size**(-1/3)))))
+
+    #### compute proba
+    hist_x = np.histogram(x,bins = nbins_x)[0]
+    hist_x = hist_x/np.sum(hist_x)
+    hist_y = np.histogram(y,bins = nbins_y)[0]
+    hist_y = hist_y/np.sum(hist_y)
+
+    hist_2d = np.histogram2d(x, y, bins=[nbins_x, nbins_y])[0]
+    hist_2d = hist_2d / np.sum(hist_2d)
+
+    #### compute MI
+    E_x = 0
+    E_y = 0
+    E_x_y = 0
+
+    for p in hist_x:
+        if p!=0 :
+            E_x += -p*np.log2(p)
+
+    for p in hist_y:
+        if p!=0 :
+            E_y += -p*np.log2(p)
+
+    for p0 in hist_2d:
+        for p in p0 :
+            if p!=0 :
+                E_x_y += -p*np.log2(p)
+
+    MI = E_x+E_y-E_x_y
+
+    return MI
 
 
 
@@ -1635,6 +1683,48 @@ def get_permutation_cluster_1d(data_baseline, data_cond, n_surr):
         plt.show()
 
     return mask
+
+
+
+
+
+
+
+########################
+######## FILTER ########
+########################
+
+#sig = data
+def iirfilt(sig, srate, lowcut=None, highcut=None, order=4, ftype='butter', verbose=False, show=False, axis=0):
+
+    if len(sig.shape) == 1:
+
+        axis = 0
+
+    if lowcut is None and not highcut is None:
+        btype = 'lowpass'
+        cut = highcut
+
+    if not lowcut is None and highcut is None:
+        btype = 'highpass'
+        cut = lowcut
+
+    if not lowcut is None and not highcut is None:
+        btype = 'bandpass'
+
+    if btype in ('bandpass', 'bandstop'):
+        band = [lowcut, highcut]
+        assert len(band) == 2
+        Wn = [e / srate * 2 for e in band]
+    else:
+        Wn = float(cut) / srate * 2
+
+    filter_mode = 'sos'
+    sos = scipy.signal.iirfilter(order, Wn, analog=False, btype=btype, ftype=ftype, output=filter_mode)
+
+    filtered_sig = scipy.signal.sosfiltfilt(sos, sig, axis=axis)
+
+    return filtered_sig
 
 
 

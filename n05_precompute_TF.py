@@ -66,23 +66,13 @@ def compute_stretch_tf(tf, cond, odor_i, respfeatures_allcond, stretch_point_TF,
 
 def precompute_tf_all_conv(sujet):
 
-    #### identify if already computed for all
-    compute_token = 0
-
-    os.chdir(os.path.join(path_precompute, 'TF'))
-
     #cond = cond_list[0]
     for cond in cond_list:
 
-        if os.path.exists(f'{sujet}_tf_conv_{cond}.npy') == False:
-            compute_token += 1
-
-    if compute_token == 0:
-        print('ALL COND ALREADY COMPUTED')
-        return
-
-    #cond = cond_list[0]
-    for cond in cond_list:
+        os.chdir(os.path.join(path_precompute, 'TF'))
+        if os.path.exists(f'{sujet}_tf_conv_{cond}.npy'):
+            print(f'{sujet} {cond} ALREADY COMPUTED')
+            continue
 
         print(f'#### {sujet} CONV {cond} ####')
 
@@ -171,7 +161,7 @@ if __name__ == '__main__':
     #sujet = sujet_list[0]
     for sujet in sujet_list:
     
-        #precompute_tf_all_conv(sujet)
+        # precompute_tf_all_conv(sujet)
         execute_function_in_slurm_bash('n05_precompute_TF', 'precompute_tf_all_conv', [sujet], n_core=15, mem='30G')
         #sync_folders__push_to_crnldata()
 
