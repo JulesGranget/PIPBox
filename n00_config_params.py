@@ -309,6 +309,10 @@ nfrex_fc = 50
 tf_stats_percentile_cluster_manual_perm = 80
 erp_time_cluster_thresh = 50 #ms
 
+
+
+
+
 ################################
 ######## TF & ITPC ########
 ################################
@@ -320,3 +324,24 @@ srate_dw = 10
 wavetime = np.arange(-3,3,1/srate)
 frex = np.logspace(np.log10(freq_list[0]), np.log10(freq_list[1]), nfrex) 
 cycles = np.logspace(np.log10(ncycle_list[0]), np.log10(ncycle_list[1]), nfrex).astype('int')
+
+ratio_stretch_TF = 0.5
+n_surrogates_tf = 1000
+tf_stats_percentile_cluster = 95
+tf_stats_percentile_cluster_size_thresh = 99
+
+
+
+########################
+######## FC ########
+########################
+
+freq_band_fc_list = ['theta', 'alpha', 'gamma']
+freq_band_fc = {'theta' : [4,8], 'alpha' : [8,12], 'gamma' : [80,150]}
+
+
+
+
+
+
+

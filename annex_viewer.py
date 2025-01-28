@@ -366,6 +366,18 @@ def viewer_one_sujet(sujet, cond, chan_selection, filter=False, raw_signals=Fals
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
 ################################
 ######## EXECUTE ########
 ################################
@@ -380,7 +392,7 @@ if __name__ == '__main__':
               '54DL_23', '55DL_24', '56DL_25', '57DL_26', '58DL_27', '59DL_28', '60DL_29', '61DL_30', '62DL_31', '63DL_32', '64DL_34',
               ]
 
-    sujet = '41DL_08'
+    sujet = '01NM_MW'
 
     #### cond    
     cond = 'VS'
@@ -395,6 +407,8 @@ if __name__ == '__main__':
     chan_selection = ['C3', 'C4', 'CP1', 'CP2', 'CP5', 'CP6', 'Cz', 'F3', 'F4', 'F7',
        'F8', 'FC1', 'FC2', 'FC5', 'FC6', 'Fp2', 'Fz', 'O1', 'O2', 'Oz',
        'P3', 'P4', 'P7', 'P8', 'Pz', 'T7', 'T8']
+
+    chan_selection = ['C3', 'C4', 'CP1', 'CP2', 'Cz', 'F3', 'F4', 'FC1', 'FC2', 'Fz']
 
     chan_selection = ['C3']
 

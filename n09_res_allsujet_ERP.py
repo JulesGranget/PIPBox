@@ -165,7 +165,6 @@ def plot_ERP_mean_allsujet(stretch=False):
         time_vec = np.arange(stretch_point_ERP)
     else:
         time_vec = np.arange(t_start_ERP, t_stop_ERP, 1/srate)
-        mask_time_vec_zoomin = (time_vec >= -0.5) & (time_vec < 0.5) 
 
     ######## IDENTIFY MIN MAX ########
 
@@ -227,12 +226,11 @@ def plot_ERP_mean_allsujet(stretch=False):
         clusters = cluster_stats.loc[nchan, :].values
         ax.fill_between(time_vec, -absmax_group, absmax_group, where=clusters.astype('int'), alpha=0.3, color='r')
 
-        ax.invert_yaxis()
-
         if stretch:
             ax.vlines(stretch_point_ERP/2, ymin=-absmax_group, ymax=absmax_group, colors='g')  
         else:
             ax.vlines(0, ymin=-absmax_group, ymax=absmax_group, colors='g')  
+            ax.invert_yaxis()
 
         fig.tight_layout()
         plt.legend()

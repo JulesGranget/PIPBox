@@ -231,104 +231,21 @@ def get_MI_allsujet():
 
 
 
-def export_df_MI():
-
-    stretch = False
-
-    #### identify anat info
-    chan_list_MI = ['C3', 'Cz', 'C4', 'FC1', 'FC2']
-    # chan_list_MI = chan_list_eeg
-
-    pairs_to_compute = []
-
-    for pair_A in chan_list_MI:
-        
-        for pair_B in chan_list_MI:
-
-            if pair_A == pair_B or f'{pair_A}-{pair_B}' in pairs_to_compute or f'{pair_B}-{pair_A}' in pairs_to_compute:
-                continue
-
-            pairs_to_compute.append(f'{pair_A}-{pair_B}')
-
-    #### compute
-    cond_sel = ['FR_CV_1', 'CO2']
-
-    if stretch:
-        MI_dict = {'sujet' : sujet_list, 'pair' : pairs_to_compute, 'cond' : cond_sel, 'odor' : odor_list, 'phase' : time_vec}
-        time_vec = np.arange(stretch_point_TF)
-    else:
-        time_vec = np.arange(ERP_time_vec[0], ERP_time_vec[1], 1/srate)
-        MI_dict = {'sujet' : sujet_list, 'pair' : pairs_to_compute, 'cond' : cond_sel, 'odor' : odor_list, 'time' : time_vec}
-
-    MI_sujet = np.zeros((len(sujet_list), len(pairs_to_compute), len(cond_sel), len(odor_list), time_vec.size))
-
-    for sujet_i, sujet in enumerate(sujet_list):
-
-        os.chdir(os.path.join(path_precompute, sujet, 'FC'))
-
-        if stretch:
-            _xr_MI = xr.open_dataarray(f'{sujet}_MI_allpairs_stretch.nc')
-        else:
-            _xr_MI = xr.open_dataarray(f'{sujet}_MI_allpairs.nc')
-
-        MI_sujet[sujet_i] = _xr_MI.values
-
-    xr_MI = xr.DataArray(data=MI_sujet, dims=MI_dict.keys(), coords=MI_dict.values())
-
-    phase_list = ['inspi', 'expi']
-    
-    MI_data = np.zeros((len(sujet_list), len(cond_sel), len(odor_list), len(phase_list), len(pairs_to_compute)))
-
-    for cond_i, cond in enumerate(cond_sel):
-
-        for odor_i, odor in enumerate(odor_list):
-                    
-            for sujet_i, sujet in enumerate(sujet_list):
-
-                for phase_i, phase in enumerate(phase_list):
-
-                    if phase == 'inspi':
-                        mask_sel = time_vec[int(time_vec.size/2):]
-                    elif phase == 'expi':
-                        mask_sel = time_vec[:int(time_vec.size/2)]
-
-                    for pair_i, pair in enumerate(pairs_to_compute):
-
-                        MI_vec = xr_MI.loc[sujet, pair, cond, odor, mask_sel].values
-
-                        MI_data[sujet_i, cond_i, odor_i, phase_i, pair_i] = MI_vec.mean()
-
-    xr_MI = xr.DataArray(data=MI_data, dims=['sujet', 'cond', 'odor', 'phase', 'pair'], coords=[sujet_list, cond_sel, odor_list, phase_list, pairs_to_compute])
-
-    df_MI = xr_MI.to_dataframe(name='MI').reset_index(drop=False)
-
-    df_MI = pd.pivot_table(df_MI, values='MI', columns=['pair'], index=['sujet', 'cond', 'odor', 'phase']).reset_index(drop=False)
-
-    os.chdir(os.path.join(path_precompute, 'allsujet', 'FC'))
-    df_MI.to_excel('df_MI_allsujet.xlsx')
 
 
 
+################################
+######## PLI ISPC ######## 
+################################
 
-
-
-
-
-########################################
-######## PLI ISPC DFC FC ######## 
-########################################
-
-
-def get_pli_ispc_fc_dfc_trial(sujet, cond, odor_i, band_prep, band, freq):
+#sujet, cond, band = sujet_list[0], cond_list[0], freq_band_fc_list[0]
+def get_pli_ispc_fc_dfc_trial(sujet, cond, band):
 
     #### load data
-    data = load_data_sujet(sujet, cond, odor_i)
-    data = data[:len(chan_list_eeg),:]
+    data = load_data_sujet(sujet, cond)
+    data = data[[chan_i for chan_i, chan in enumerate(chan_list_eeg) if chan in chan_list_eeg_short]]
     
     data_length = data.shape[-1]
-
-    #### get params
-    prms = get_params()
 
     wavelets = get_wavelets_fc(band_prep, freq)
 
@@ -400,8 +317,8 @@ def get_pli_ispc_fc_dfc_trial(sujet, cond, odor_i, band_prep, band, freq):
         as2 = convolutions[pair_B_i,:,:]
 
         #### stretch data
-        as1_stretch = stretch_data_tf(respfeatures_allcond[cond][odor_i], stretch_point_TF, as1, prms['srate'])[0]
-        as2_stretch = stretch_data_tf(respfeatures_allcond[cond][odor_i], stretch_point_TF, as2, prms['srate'])[0]
+        as1_stretch = stretch_data_tf(respfeatures_allcond[cond][odor_i], stretch_point_ERP, as1, srate)[0]
+        as2_stretch = stretch_data_tf(respfeatures_allcond[cond][odor_i], stretch_point_ERP, as2, srate)[0]
 
         #phase = 'whole'
         for phase_i, phase in enumerate(phase_list):

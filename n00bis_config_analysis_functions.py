@@ -13,6 +13,7 @@ import xarray as xr
 import physio
 import paramiko
 import getpass
+import cv2
 
 from bycycle.cyclepoints import find_extrema
 import neurokit2 as nk
@@ -215,7 +216,8 @@ def sync_folders__push_to_mnt(clusterexecution=True):
     #### need to be exectuted outside of cluster to work
     folder_to_push_to = {path_data : os.path.join(path_mntdata, 'Data'), path_precompute : os.path.join(path_mntdata, 'Analyses', 'precompute'), 
                          path_prep : os.path.join(path_mntdata, 'Analyses', 'preprocessing'), path_main_workdir : os.path.join(path_mntdata, 'Scripts'),
-                         path_slurm : os.path.join(path_mntdata, 'Scripts_slurm')}
+                         path_slurm : os.path.join(path_mntdata, 'Scripts_slurm'), 
+                         os.path.join(path_results, 'RESPI', 'respfeatures') : os.path.join(path_mntdata, 'Analyses', 'results', 'RESPI', 'respfeatures')}
 
     if clusterexecution:
             
@@ -343,7 +345,7 @@ def sync_folders__push_to_crnldata(clusterexecution=True):
 ################################
 
 
-#name_script, name_function, params = 'n05_precompute_TF', 'precompute_tf_all_conv', [sujet]
+#name_script, name_function, params = 'n06_precompute_TF_STATS', 'precompute_tf_STATS_allsujet', [chan]
 def execute_function_in_slurm_bash(name_script, name_function, params, n_core=15, mem='15G'):
 
     script_path = os.getcwd()
@@ -476,7 +478,7 @@ def get_wavelets():
 
 
 
-def get_wavelets_fc(band_prep, freq):
+def get_wavelets_fc(freq):
 
     #### select wavelet parameters
     if freq[0] < 45:
@@ -707,7 +709,7 @@ def stretch_data(resp_features, nb_point_by_cycle, data, srate):
 
 
 
-#resp_features, nb_point_by_cycle, data, srate = respfeatures_allcond[cond][odor_i], stretch_point_TF, tf[n_chan,:,:], srate
+#resp_features, nb_point_by_cycle, data, srate = respfeatures, stretch_point_ERP, tf_load, srate
 def stretch_data_tf(resp_features, nb_point_by_cycle, data, srate):
 
     #### params
@@ -726,19 +728,15 @@ def stretch_data_tf(resp_features, nb_point_by_cycle, data, srate):
         cycles = physio.deform_traces_to_cycle_template(data.T, times, cycle_times, points_per_cycle=nb_point_by_cycle, 
                 segment_ratios=ratio_stretch_TF, output_mode='stacked')
 
-    #### clean
-    mask = resp_features[resp_features['select'] == 1].index.values
-    cycle_clean = cycles[mask, :, :]
-
     #### reshape
     if np.iscomplex(data[0,0]):
-        data_stretch = np.zeros(( cycle_clean.shape[0], data.shape[0], nb_point_by_cycle ), dtype='complex')
+        data_stretch = np.zeros(( cycles.shape[0], data.shape[0], nb_point_by_cycle ), dtype='complex')
     else:
-        data_stretch = np.zeros(( cycle_clean.shape[0], data.shape[0], nb_point_by_cycle ))
+        data_stretch = np.zeros(( cycles.shape[0], data.shape[0], nb_point_by_cycle ))
 
-    for cycle_i in range(cycle_clean.shape[0]):
+    for cycle_i in range(cycles.shape[0]):
 
-        data_stretch[cycle_i, :, :] = cycle_clean[cycle_i,:,:].T
+        data_stretch[cycle_i, :, :] = cycles[cycle_i,:,:].T
 
     #### inspect
     if debug == True:
@@ -1687,6 +1685,117 @@ def get_permutation_cluster_1d(data_baseline, data_cond, n_surr):
 
 
 
+# data_baseline, data_cond, n_surr = tf_stretch_baseline_allsujet, tf_stretch_cond_allsujet, 100
+def get_permutation_cluster_2d(data_baseline, data_cond, n_surr):
+
+    """
+    For data shape (trial,frequences,time)
+
+    """
+
+    #### define ncycle
+    n_trial_baselines = data_baseline.shape[0]
+    n_trial_cond = data_cond.shape[0]
+    n_trial_selection = np.array([n_trial_baselines, n_trial_cond]).min()
+
+    pixel_based_distrib = np.zeros((data_baseline.shape[1], 2))
+    data_shuffle = np.zeros((n_trial_selection, data_baseline.shape[1], data_baseline.shape[-1]))
+
+    #### space allocation
+    _pixel_based_distrib = np.zeros((nfrex, n_surr, 2), dtype=np.float32)
+
+    #surrogates_i = 0
+    for surrogates_i in range(n_surr):
+
+        print_advancement(surrogates_i, n_surr, steps=[25, 50, 75])
+
+        #### random selection
+        draw_indicator = np.random.randint(low=0, high=2, size=n_trial_selection)
+        sel_baseline = np.random.choice(n_trial_baselines, size=(draw_indicator == 0).sum(), replace=False)
+        sel_cond = np.random.choice(n_trial_cond, size=(draw_indicator == 1).sum(), replace=False)
+
+        #### extract max min
+        data_shuffle[:len(sel_baseline),:,:] = data_baseline[sel_baseline, :, :]
+        data_shuffle[len(sel_baseline):,:,:] = data_cond[sel_cond, :, :]
+
+        _min, _max = np.median(data_shuffle, axis=0).min(axis=1), np.median(data_shuffle, axis=0).max(axis=1)
+        
+        _pixel_based_distrib[:, surrogates_i, 0] = _min
+        _pixel_based_distrib[:, surrogates_i, 1] = _max
+
+    pixel_based_distrib[:,0], pixel_based_distrib[:,1] = np.median(_pixel_based_distrib[:,:,0], axis=1), np.median(_pixel_based_distrib[:,:,1], axis=1)
+    # min, max = np.percentile(pixel_based_distrib_i[:,:,0], tf_percentile_sel_stats_dw, axis=1), np.percentile(pixel_based_distrib_i[:,:,1], tf_percentile_sel_stats_up, axis=1) 
+
+    if debug:
+
+        data_plot = np.median(data_cond, axis=0)
+
+        time = np.arange(data_plot.shape[-1])
+
+        plt.pcolormesh(time, frex, data_plot, shading='gouraud', cmap='seismic')
+        plt.yscale('log')
+        plt.show()
+
+        #wavelet_i = 0
+        for wavelet_i in range(20):
+            count, _, _ = plt.hist(data_plot[wavelet_i, :], bins=500)
+            plt.vlines([pixel_based_distrib[wavelet_i], pixel_based_distrib[wavelet_i]], ymin=0, ymax=count.max(), color='r')
+            plt.show()
+
+    #### thresh data
+    data_thresh_dict = {}
+
+    for type in ['baseline', 'cond']:
+
+        if type == 'baseline':
+            data_median = np.median(data_baseline, axis=0)
+        elif type == 'cond':
+            data_median = np.median(data_cond, axis=0)
+        
+        data_thresh = np.zeros(data_cond[0,:,:].shape)
+
+        #wavelet_i = 0
+        for wavelet_i in range(data_baseline.shape[1]):
+
+            mask = np.logical_or(data_median[wavelet_i, :] < pixel_based_distrib[wavelet_i, 0], data_median[wavelet_i, :] > pixel_based_distrib[wavelet_i, 1])
+            data_thresh[wavelet_i, :] = mask*1
+
+        if debug:
+
+            plt.pcolormesh(data_thresh)
+            plt.show()
+
+        #### thresh cluster
+        data_thresh = data_thresh.astype('uint8')
+        nb_blobs, im_with_separated_blobs, stats, _ = cv2.connectedComponentsWithStats(data_thresh)
+        #### nb_blobs, im_with_separated_blobs, stats = nb clusters, clusters image with labeled clusters, info on clusters
+        sizes = stats[1:, -1]
+        nb_blobs -= 1
+        min_size = np.percentile(sizes,tf_stats_percentile_cluster_size_thresh)  
+
+        if debug:
+
+            count, _, _ = plt.hist(sizes, bins=100)
+            plt.vlines(np.percentile(sizes,95), ymin=0, ymax=count.max(), colors='r')
+            plt.show()
+
+        data_thresh = np.zeros_like(im_with_separated_blobs)
+        for blob in range(nb_blobs):
+            if sizes[blob] >= min_size:
+                data_thresh[im_with_separated_blobs == blob + 1] = 1
+
+        if debug:
+        
+            time = np.arange(data_median.shape[-1])
+
+            plt.pcolormesh(time, frex, data_median, shading='gouraud', cmap='seismic')
+            plt.contour(time, frex, data_thresh, levels=0, colors='g')
+            plt.yscale('log')
+            plt.show()
+
+        data_thresh_dict[type] = data_thresh
+
+    return data_thresh_dict['baseline'], data_thresh_dict['cond']
 
 
 

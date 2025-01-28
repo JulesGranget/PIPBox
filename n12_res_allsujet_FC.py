@@ -146,12 +146,17 @@ def plot_allsujet_MI_mat():
 
         MI_mat = np.zeros((len(chan_list_eeg_short), len(chan_list_eeg_short)))
 
+        if stretch:
+            time_vec_stats = time_vec[time_vec <= 0]
+        else:
+            time_vec_stats = time_vec
+
         #pair_i, pair = 2, pairs_to_compute[2]
         for pair_i, pair in enumerate(pairs_to_compute):
             A, B = pair.split('-')
             A_i, B_i = np.where(chan_list_eeg_short == A)[0][0], np.where(chan_list_eeg_short == B)[0][0]
 
-            data_chunk_diff = MI_allsujet.loc[:, pair, 'CHARGE', :].mean('sujet').values - MI_allsujet.loc[:, pair, 'VS', :].mean('sujet').values
+            data_chunk_diff = MI_allsujet.loc[:, pair, 'CHARGE', time_vec_stats].mean('sujet').values - MI_allsujet.loc[:, pair, 'VS', time_vec_stats].mean('sujet').values
             _clusters = clusters.loc[pair, :].values
 
             if _clusters.sum() == 0:
