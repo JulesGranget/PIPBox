@@ -338,6 +338,7 @@ tf_stats_percentile_cluster_size_thresh = 99
 
 freq_band_fc_list = ['theta', 'alpha', 'gamma']
 freq_band_fc = {'theta' : [4,8], 'alpha' : [8,12], 'gamma' : [80,150]}
+n_surr_fc = 1000
 
 
 

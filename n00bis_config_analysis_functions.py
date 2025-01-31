@@ -477,33 +477,44 @@ def get_wavelets():
 
 
 
-
+#freq = freq_band_fc[band]
 def get_wavelets_fc(freq):
 
     #### select wavelet parameters
+    wavelets_mask = (frex >= freq[0]) & (frex <= freq[-1])
+    frex_list = frex[wavelets_mask]
+    ncycle_list = cycles[wavelets_mask]
+    nfrex_freq = wavelets_mask.sum()
+
     if freq[0] < 45:
         wavetime = np.arange(-2,2,1/srate)
-        nfrex = nfrex_fc
-        ncycle_list = np.linspace(7, 12, nfrex) 
 
     if freq[0] > 45:
         wavetime = np.arange(-.5,.5,1/srate)
-        nfrex = nfrex_fc
-        ncycle_list = np.linspace(20, 41, nfrex)
 
     #### compute wavelets
-    frex  = np.linspace(freq[0],freq[1],nfrex)
-    wavelets = np.zeros((nfrex,len(wavetime)) ,dtype=complex)
+    wavelets = np.zeros((nfrex_freq,len(wavetime)) ,dtype=complex)
 
     # create Morlet wavelet family
-    for fi in range(0,nfrex):
+    for fi in range(nfrex_freq):
         
-        s = ncycle_list[fi] / (2*np.pi*frex[fi])
+        s = ncycle_list[fi] / (2*np.pi*frex_list[fi])
         gw = np.exp(-wavetime**2/ (2*s**2)) 
-        sw = np.exp(1j*(2*np.pi*frex[fi]*wavetime))
+        sw = np.exp(1j*(2*np.pi*frex_list[fi]*wavetime))
         mw =  gw * sw
 
         wavelets[fi,:] = mw
+
+    if debug:
+
+        plt.plot(np.sum(np.abs(wavelets),axis=1))
+        plt.show()
+
+        plt.pcolormesh(np.real(wavelets))
+        plt.show()
+
+        plt.plot(np.real(wavelets)[0,:])
+        plt.show()
 
     return wavelets
 

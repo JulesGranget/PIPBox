@@ -218,8 +218,91 @@ if __name__ == '__main__':
 
 
 
+import numpy as np
+import pandas as pd
+import statsmodels.api as sm
+from statsmodels.formula.api import mixedlm
+import seaborn as sns
+import matplotlib.pyplot as plt
 
+# Set random seed for reproducibility
+np.random.seed(42)
 
+# Simulate data
+n_groups = 10
+obs_per_group = 20
+groups = np.repeat([f'G{i}' for i in range(1, n_groups + 1)], obs_per_group)
 
+# Fixed effects
+ages = np.random.randint(20, 60, size=n_groups * obs_per_group)
+genders = np.random.choice(['M', 'F'], size=n_groups * obs_per_group)
+treatments = np.random.choice(['A', 'B'], size=n_groups * obs_per_group)
 
+# Induce an effect for treatment (e.g., treatment B increases y by 5)
+treatment_effect = {'A': 0, 'B': 5}
+y_base = 50 + 0.5 * ages  # Base effect of age on y
+y_treatment = np.array([treatment_effect[t] for t in treatments])
+random_group_effect = np.repeat(np.random.normal(0, 2, n_groups), obs_per_group)  # Random effects
+random_noise = np.random.normal(0, 3, n_groups * obs_per_group)  # Residuals
+
+# Dependent variable
+y = y_base + y_treatment + random_group_effect + random_noise
+
+# Create DataFrame
+df = pd.DataFrame({
+    'y': y,
+    'age': ages,
+    'gender': genders,
+    'treatment': treatments,
+    'group': groups
+})
+
+# Convert categorical variables
+df['gender'] = df['gender'].astype('category')
+df['treatment'] = df['treatment'].astype('category')
+
+# Display the first few rows of the simulated data
+print(df.head())
+
+# Visualize the data
+sns.boxplot(x='treatment', y='y', data=df)
+plt.title("Effect of Treatment on y")
+plt.show()
+
+# --- Mixed Model Analysis ---
+# Define the mixed-effects model
+model = mixedlm("y ~ age + gender + treatment", df, groups=df["group"])
+result = model.fit()
+
+# Display the summary
+print(result.summary())
+
+# --- Assumption Checks ---
+
+# 1. Residual Plot
+df['fitted'] = result.fittedvalues
+df['residuals'] = result.resid
+
+sns.scatterplot(x='fitted', y='residuals', data=df)
+plt.axhline(0, color='red', linestyle='--')
+plt.title("Residuals vs Fitted Values")
+plt.xlabel("Fitted Values")
+plt.ylabel("Residuals")
+plt.show()
+
+# 2. Normality of Residuals
+sns.histplot(df['residuals'], kde=True, bins=20)
+plt.title("Histogram of Residuals")
+plt.show()
+
+# 3. Random Effect Assumptions
+# Extract random effects
+random_effects = result.random_effects
+random_effects_values = [v[0] for v in random_effects.values()]
+
+sns.histplot(random_effects_values, kde=True, bins=10)
+plt.title("Histogram of Random Effects")
+plt.xlabel("Random Effect Value")
+plt.ylabel("Frequency")
+plt.show()
 
