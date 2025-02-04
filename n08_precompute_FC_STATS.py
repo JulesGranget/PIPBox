@@ -44,25 +44,42 @@ def compute_stats_MI_allsujet(stretch):
         MI_allsujet = xr.open_dataarray('MI_allsujet_stretch.nc')
     else:
         MI_allsujet = xr.open_dataarray('MI_allsujet.nc')
+
+    time_vec = MI_allsujet['time'].values
     
     if stretch:
-        time_vec = MI_allsujet['phase'].values
         time_vec_stats = time_vec
     else:
-        time_vec = MI_allsujet['time'].values
         time_vec_stats = time_vec <= 0
 
     pairs_to_compute = MI_allsujet['pair'].values
 
     clusters = np.zeros((pairs_to_compute.size, time_vec.size))
 
-    #pair_i, pair = 1, pairs_to_compute[1]
+    #pair_i, pair = 35, pairs_to_compute[35]
     for pair_i, pair in enumerate(pairs_to_compute):
 
         print_advancement(pair_i, len(pairs_to_compute))
 
         data_baseline = MI_allsujet.loc[:, pair, 'VS', :].values
         data_cond = MI_allsujet.loc[:, pair, 'CHARGE', :].values
+
+        if debug:
+
+            for i in range(len(sujet_list)):
+                plt.plot(data_baseline[i,:], alpha=0.2)
+            plt.plot(data_baseline.mean(axis=0), color='k')
+            plt.show()
+
+            for i in range(len(sujet_list)):
+                plt.plot(data_cond[i,:], alpha=0.2)
+            plt.plot(data_cond.mean(axis=0), color='k')
+            plt.show()
+
+            plt.hist(data_baseline.reshape(-1), bins=50, alpha=0.5, label='VS')
+            plt.hist(data_cond.reshape(-1), bins=50, alpha=0.5, label='CHARGE')
+            plt.legend()
+            plt.show()
 
         _cluster = get_permutation_cluster_1d(data_baseline[:,time_vec_stats], data_cond[:,time_vec_stats], n_surr_fc)
 

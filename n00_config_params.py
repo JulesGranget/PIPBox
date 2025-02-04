@@ -117,7 +117,14 @@ if PC_ID == 'LAPTOP-EI7OSP7K':
         path_memmap = 'N:\\Projets\\PPI_Jules\\memmap'
         n_core = 4
 
-    
+
+elif PC_ID == 'jules-precisiont1700':
+
+    PC_working = 'Jules_Labo_Linux'
+    path_main_workdir = '/home/jules/smb4k/CRNLDATA/crnldata/cmo/Projets/PPI_Jules/Scripts'
+    path_general = '/home/jules/smb4k/CRNLDATA/crnldata/cmo/Projets/PPI_Jules'
+    path_memmap = '/home/jules/smb4k/CRNLDATA/crnldata/cmo/Projets/PPI_Jules/memmap'
+    n_core = 5
 
 elif PC_ID == 'DESKTOP-3IJUK7R':
 
