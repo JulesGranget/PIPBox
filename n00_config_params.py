@@ -335,7 +335,7 @@ cycles = np.logspace(np.log10(ncycle_list[0]), np.log10(ncycle_list[1]), nfrex).
 ratio_stretch_TF = 0.5
 n_surrogates_tf = 1000
 tf_stats_percentile_cluster = 95
-tf_stats_percentile_cluster_size_thresh = 99
+tf_stats_percentile_cluster_size_thresh = 75
 
 
 

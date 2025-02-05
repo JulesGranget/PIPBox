@@ -10,12 +10,48 @@ import seaborn as sns
 import gc
 from matplotlib.animation import FuncAnimation
 import networkx as nx
+import matplotlib.patches as patches
 
 from n00_config_params import *
 from n00bis_config_analysis_functions import *
 from n00ter_stats import *
 
 debug = False
+
+
+
+
+
+
+########################################
+######## SUPPORT FUNCTIONS ########
+########################################
+
+#data, pairs = clusters.loc['whole', :].values, clusters['pair'].values
+def from_pairs_2mat(data, pairs):
+
+    unique_channels = sorted(set([ch for pair in pairs for ch in pair.split("-")]))
+    channel_to_index = {ch: i for i, ch in enumerate(unique_channels)}  # Mapping channel -> index
+
+    mat = np.zeros((len(unique_channels), len(unique_channels)))
+
+    for pair, value in zip(pairs, data):
+        ch1, ch2 = pair.split("-") 
+        i, j = channel_to_index[ch1], channel_to_index[ch2] 
+        mat[i, j] = value
+        mat[j, i] = value 
+
+    if debug:
+
+        plt.imshow(mat)
+        plt.show()
+
+    return mat
+
+
+
+
+
 
 
 
@@ -39,10 +75,10 @@ def plot_allsujet_FC_chunk():
             os.chdir(os.path.join(path_precompute, 'FC', fc_metric))
             if stretch:
                 fc_allsujet = xr.open_dataarray(f'{fc_metric}_allsujet_stretch.nc')
-                clusters = xr.open_dataarray(f'{fc_metric}_allsujet_STATS_stretch.nc')
+                clusters = xr.open_dataarray(f'{fc_metric}_allsujet_STATS_time_stretch.nc')
             else:
                 fc_allsujet = xr.open_dataarray(f'{fc_metric}_allsujet.nc')
-                clusters = xr.open_dataarray(f'{fc_metric}_allsujet_STATS.nc')
+                clusters = xr.open_dataarray(f'{fc_metric}_allsujet_STATS_time.nc')
 
             pairs_to_compute = fc_allsujet['pair'].values
             time_vec = fc_allsujet['time'].values
@@ -170,7 +206,7 @@ def plot_allsujet_FC_chunk():
 
 def plot_allsujet_FC_mat():
 
-    #stretch = True
+    #stretch = False
     for stretch in [True, False]:
 
         #fc_metric = 'MI'
@@ -181,10 +217,12 @@ def plot_allsujet_FC_mat():
             os.chdir(os.path.join(path_precompute, 'FC', fc_metric))
             if stretch:
                 fc_allsujet = xr.open_dataarray(f'{fc_metric}_allsujet_stretch.nc')
-                clusters = xr.open_dataarray(f'{fc_metric}_allsujet_STATS_stretch.nc')
+                clusters = xr.open_dataarray(f'{fc_metric}_allsujet_STATS_state_stretch.nc')
+                clusters_time = xr.open_dataarray(f'{fc_metric}_allsujet_STATS_time_stretch.nc')
             else:
                 fc_allsujet = xr.open_dataarray(f'{fc_metric}_allsujet.nc')
-                clusters = xr.open_dataarray(f'{fc_metric}_allsujet_STATS.nc')
+                clusters = xr.open_dataarray(f'{fc_metric}_allsujet_STATS_state.nc')
+                clusters_time = xr.open_dataarray(f'{fc_metric}_allsujet_STATS_time_stretch.nc')
 
             pairs_to_compute = fc_allsujet['pair'].values
             time_vec = fc_allsujet['time'].values
@@ -198,8 +236,16 @@ def plot_allsujet_FC_mat():
                 if stretch:
 
                     fc_mat = np.zeros((len(phase_list), len(chan_list_eeg_short), len(chan_list_eeg_short)))
+                    fc_mat_mask_signi = np.zeros((len(phase_list), len(chan_list_eeg_short), len(chan_list_eeg_short)))
+                    fc_mat_only_signi = np.zeros((len(phase_list), len(chan_list_eeg_short), len(chan_list_eeg_short)))
 
+                    #phase_i, phase = 0, 'whole'
                     for phase_i, phase in enumerate(phase_list):
+
+                        if fc_metric == 'MI':
+                            fc_mat_mask_signi[phase_i,:,:] = from_pairs_2mat(clusters.loc[phase,:], pairs_to_compute)
+                        else:
+                            fc_mat_mask_signi[phase_i,:,:] = from_pairs_2mat(clusters.loc[phase,band,:], pairs_to_compute)
 
                         #pair_i, pair = 2, pairs_to_compute[2]
                         for pair_i, pair in enumerate(pairs_to_compute):
@@ -209,50 +255,90 @@ def plot_allsujet_FC_mat():
 
                             if fc_metric == 'MI':
                                 data_chunk_diff = fc_allsujet.loc[:, pair, 'CHARGE', phase_vec[phase]].mean('sujet').values - fc_allsujet.loc[:, pair, 'VS', phase_vec[phase]].mean('sujet').values
-                                _clusters = clusters.loc[pair, phase_vec[phase]].values
-
+                                
                             else:
                                 data_chunk_diff = fc_allsujet.loc[:, band, 'CHARGE', pair, phase_vec[phase]].mean('sujet').values - fc_allsujet.loc[:, band, 'VS', pair, phase_vec[phase]].mean('sujet').values
-                                _clusters = clusters.loc[band,pair, phase_vec[phase]].values
 
-                            if _clusters.sum() == 0:
-                                continue
-
-                            fc_val = data_chunk_diff[_clusters.astype('bool')].mean()
+                            fc_val = data_chunk_diff.mean()
 
                             fc_mat[phase_i, A_i, B_i], fc_mat[phase_i, B_i, A_i] = fc_val, fc_val
+
+                            if fc_metric == 'MI' and clusters.loc[phase,pair].values.astype('bool'):
+                                fc_mat_only_signi[phase_i, A_i, B_i], fc_mat_only_signi[phase_i, B_i, A_i] = fc_val, fc_val
+                            elif fc_metric != 'MI' and clusters.loc[phase,band,pair].values.astype('bool'):
+                                fc_mat_only_signi[phase_i, A_i, B_i], fc_mat_only_signi[phase_i, B_i, A_i] = fc_val, fc_val
 
                     #### plot
 
                     vlim = np.abs((fc_mat.min(), fc_mat.max())).max()
 
-                    fig, axs = plt.subplots(ncols=len(phase_list), figsize=(12,5)) 
+                    for fc_type in ['fullmat', 'signimat']:
 
-                    for phase_i, phase in enumerate(phase_list):
+                        fig, axs = plt.subplots(ncols=len(phase_list), figsize=(12,5)) 
 
-                        ax = axs[phase_i]
+                        for phase_i, phase in enumerate(phase_list):
 
-                        im = ax.imshow(fc_mat[phase_i, :, :], cmap='seismic', vmin=-vlim, vmax=vlim)
-                        ax.set_xticks(ticks=np.arange(fc_mat.shape[1]), labels=chan_list_eeg_short, rotation=90)
-                        ax.set_xlabel("Electrodes")
+                            ax = axs[phase_i]
 
-                        if phase_i == 0:
-                            ax.set_yticks(ticks=np.arange(fc_mat.shape[1]), labels=chan_list_eeg_short)
-                            ax.set_ylabel("Electrodes")
+                            if fc_type == 'fullmat':
+                                im = ax.imshow(fc_mat[phase_i, :, :], cmap='seismic', vmin=-vlim, vmax=vlim)
+                            elif fc_type == 'signimat':
+                                im = ax.imshow(fc_mat_only_signi[phase_i, :, :], cmap='seismic', vmin=-vlim, vmax=vlim)
+                            ax.set_xticks(ticks=np.arange(fc_mat.shape[1]), labels=chan_list_eeg_short, rotation=90)
+                            ax.set_xlabel("Electrodes")
 
-                        ax.set_title(phase)
+                            if phase_i == 0:
+                                ax.set_yticks(ticks=np.arange(fc_mat.shape[1]), labels=chan_list_eeg_short)
+                                ax.set_ylabel("Electrodes")
 
-                    fig.colorbar(im, ax=axs, orientation='vertical', fraction=0.02, pad=0.04, label="Connectivity Strength")
+                            if fc_type == 'fullmat':
+                                _fc_mat_mask_signi = fc_mat_mask_signi[phase_i,:,:]
 
-                    if fc_metric == 'MI':
-                        plt.suptitle("MI FC")
-                    else:
-                        plt.suptitle(f'{fc_metric} {band} FC')
+                                for i in range(_fc_mat_mask_signi.shape[0]):
+                                    for j in range(_fc_mat_mask_signi.shape[1]):
+                                        if _fc_mat_mask_signi[i, j]:
+                                            rect = patches.Rectangle((j - 0.5, i - 0.5), 1, 1, linewidth=4, edgecolor='g', facecolor='none')
+                                            ax.add_patch(rect)
 
-                #### nostretch comute
+                            ax.set_title(phase)
+
+                        fig.colorbar(im, ax=axs, orientation='vertical', fraction=0.02, pad=0.04, label="Connectivity Strength")
+
+                        if fc_metric == 'MI':
+                            plt.suptitle("MI FC")
+                        else:
+                            plt.suptitle(f'{fc_metric} {band} FC')
+
+                        # plt.show()
+
+                        os.chdir(os.path.join(path_results, 'FC', fc_metric, 'matplot'))
+
+                        if fc_metric == 'MI':
+                            if stretch:
+                                plt.savefig(f'stretch_MI_FC_{fc_type}.jpeg', dpi=150)
+                            else:
+                                plt.savefig(f'nostretch_MI_FC_{fc_type}.jpeg', dpi=150)
+
+                        else:
+                            if stretch:
+                                plt.savefig(f'stretch_{fc_metric}_{band}_FC_{fc_type}.jpeg', dpi=150)
+                            else:
+                                plt.savefig(f'nostretch_{fc_metric}_{band}_FC_{fc_type}.jpeg', dpi=150)
+
+                        plt.close('all')
+                        gc.collect()
+
+                #### nostretch compute
                 else:  
 
                     fc_mat = np.zeros((len(chan_list_eeg_short), len(chan_list_eeg_short)))
+                    fc_mat_mask_signi = np.zeros((len(chan_list_eeg_short), len(chan_list_eeg_short)))
+                    fc_mat_only_signi = np.zeros((len(chan_list_eeg_short), len(chan_list_eeg_short)))
+
+                    if fc_metric == 'MI':
+                        fc_mat_mask_signi[:,:] = from_pairs_2mat(clusters, pairs_to_compute)
+                    else:
+                        fc_mat_mask_signi[:,:] = from_pairs_2mat(clusters.loc[band,:], pairs_to_compute)
 
                     #pair_i, pair = 2, pairs_to_compute[2]
                     for pair_i, pair in enumerate(pairs_to_compute):
@@ -261,56 +347,73 @@ def plot_allsujet_FC_mat():
                         A_i, B_i = np.where(chan_list_eeg_short == A)[0][0], np.where(chan_list_eeg_short == B)[0][0]
 
                         if fc_metric == 'MI':
-                            data_chunk_diff = fc_allsujet.loc[:, pair, 'CHARGE', time_vec].mean('sujet').values - fc_allsujet.loc[:, pair, 'VS', time_vec].mean('sujet').values
-                            _clusters = clusters.loc[pair, :].values
-
+                            data_chunk_diff = fc_allsujet.loc[:, pair, 'CHARGE', :].mean('sujet').values - fc_allsujet.loc[:, pair, 'VS', :].mean('sujet').values
+                            
                         else:
-                            data_chunk_diff = fc_allsujet.loc[:, band, 'CHARGE', pair, time_vec].mean('sujet').values - fc_allsujet.loc[:, band, 'VS', pair, time_vec].mean('sujet').values
-                            _clusters = clusters.loc[band,pair, :].values
+                            data_chunk_diff = fc_allsujet.loc[:, band, 'CHARGE', pair, :].mean('sujet').values - fc_allsujet.loc[:, band, 'VS', pair, :].mean('sujet').values
 
-                        if _clusters.sum() == 0:
-                            continue
-
-                        fc_val = data_chunk_diff[_clusters.astype('bool')].mean()
+                        fc_val = data_chunk_diff.mean()
 
                         fc_mat[A_i, B_i], fc_mat[B_i, A_i] = fc_val, fc_val
+
+                        if fc_mat_mask_signi[A_i, B_i].astype('bool'):
+                            fc_mat_only_signi[A_i, B_i], fc_mat_only_signi[B_i, A_i] = fc_val, fc_val
 
                     #### plot
 
                     vlim = np.abs((fc_mat.min(), fc_mat.max())).max()
 
-                    plt.matshow(fc_mat, cmap='seismic')
-                    plt.colorbar(label='Connectivity Strength')
-                    plt.clim(-vlim, vlim)
-                    plt.xticks(ticks=np.arange(fc_mat.shape[0]), labels=chan_list_eeg_short, rotation=90)
-                    plt.yticks(ticks=np.arange(fc_mat.shape[0]), labels=chan_list_eeg_short)
-                    plt.xlabel("Electrodes")
-                    plt.ylabel("Electrodes")
-                    if fc_metric == 'MI':
-                        plt.title("MI FC")
-                    else:
-                        plt.title(f'{fc_metric} {band} FC')
-                    # plt.show()
+                    for fc_type in ['fullmat', 'signimat']:
 
-                #### both save
-                os.chdir(os.path.join(path_results, 'FC', fc_metric, 'matplot'))
+                        fig, ax = plt.subplots() 
 
-                if fc_metric == 'MI':
-                    if stretch:
-                        plt.savefig(f'stretch_MI_FC.jpeg', dpi=150)
-                    else:
-                        plt.savefig(f'nostretch_MI_FC.jpeg', dpi=150)
+                        if fc_type == 'fullmat':
+                            im = ax.imshow(fc_mat, cmap='seismic', vmin=-vlim, vmax=vlim)
+                        elif fc_type == 'signimat':
+                            im = ax.imshow(fc_mat_only_signi, cmap='seismic', vmin=-vlim, vmax=vlim)
 
-                else:
-                    if stretch:
-                        plt.savefig(f'stretch_{fc_metric}_{band}_FC.jpeg', dpi=150)
-                    else:
-                        plt.savefig(f'nostretch_{fc_metric}_{band}_FC.jpeg', dpi=150)
+                        ax.set_xticks(ticks=np.arange(fc_mat.shape[1]), labels=chan_list_eeg_short, rotation=90)
+                        ax.set_xlabel("Electrodes")
 
-                plt.close('all')
-                gc.collect()
+                        ax.set_yticks(ticks=np.arange(fc_mat.shape[1]), labels=chan_list_eeg_short)
+                        ax.set_ylabel("Electrodes")
 
-                def get_visu_data(time_window):
+                        if fc_type == 'fullmat':
+
+                            for i in range(fc_mat_mask_signi.shape[0]):
+                                for j in range(fc_mat_mask_signi.shape[1]):
+                                    if fc_mat_mask_signi[i, j]:
+                                        rect = patches.Rectangle((j - 0.5, i - 0.5), 1, 1, linewidth=4, edgecolor='g', facecolor='none')
+                                        ax.add_patch(rect)
+
+                        fig.colorbar(im, ax=ax, orientation='vertical', fraction=0.02, pad=0.04, label="Connectivity Strength")
+
+                        if fc_metric == 'MI':
+                            plt.suptitle("MI FC")
+                        else:
+                            plt.suptitle(f'{fc_metric} {band} FC')
+
+                        # plt.show()
+
+                        #### both save
+                        os.chdir(os.path.join(path_results, 'FC', fc_metric, 'matplot'))
+
+                        if fc_metric == 'MI':
+                            if stretch:
+                                plt.savefig(f'stretch_MI_FC_{fc_type}.jpeg', dpi=150)
+                            else:
+                                plt.savefig(f'nostretch_MI_FC_{fc_type}.jpeg', dpi=150)
+
+                        else:
+                            if stretch:
+                                plt.savefig(f'stretch_{fc_metric}_{band}_FC_{fc_type}.jpeg', dpi=150)
+                            else:
+                                plt.savefig(f'nostretch_{fc_metric}_{band}_FC_{fc_type}.jpeg', dpi=150)
+
+                        plt.close('all')
+                        gc.collect()
+
+                def get_visu_data_fullmat(time_window):
 
                     time_chunk_points = int(time_window * srate)
                     start_window = np.arange(0, time_vec.size, time_chunk_points)
@@ -339,10 +442,10 @@ def plot_allsujet_FC_mat():
 
                             if fc_metric == 'MI':
                                 data_chunk_diff = fc_allsujet[:, pair_i, cond_i, win_start:win_stop].mean('sujet').values - fc_allsujet[:, pair_i, baseline_i, win_start:win_stop].mean('sujet').values
-                                _clusters = clusters[pair_i, win_start:win_stop].values
+                                _clusters = clusters_time[pair_i, win_start:win_stop].values
                             else:
                                 data_chunk_diff = fc_allsujet[:, band_i, cond_i, pair_i, win_start:win_stop].mean('sujet').values - fc_allsujet[:, band_i, baseline_i, pair_i, win_start:win_stop].mean('sujet').values
-                                _clusters = clusters[band_i, pair_i, win_start:win_stop].values
+                                _clusters = clusters_time[band_i, pair_i, win_start:win_stop].values
 
                             fc_val = data_chunk_diff.mean()
                             _fc_mat[A_i, B_i], _fc_mat[B_i, A_i] = fc_val, fc_val
@@ -354,77 +457,146 @@ def plot_allsujet_FC_mat():
                         cluster_mask_wins[win_i, :,:] = _cluster_mat
 
                     return n_times, start_window, data_chunk_wins, cluster_mask_wins
-
-                time_window = 0.1#in s
-                n_times, start_window, data_chunk_wins, cluster_mask_wins = get_visu_data(time_window)
-                vlim = np.abs((data_chunk_wins.min(), data_chunk_wins.max())).max()
-
-                if debug:
-
-                    win_i = 15
-
-                    plt.matshow(data_chunk_wins[win_i,:,:], cmap='seismic')
-
-                    for i in range(chan_list_eeg_short.shape[0]):
-                        for j in range(chan_list_eeg_short.shape[0]):
-                            if cluster_mask_wins[win_i, i, j]:
-                                plt.gca().add_patch(plt.Rectangle((j - 0.5, i - 0.5), 1, 1, edgecolor='green', facecolor='none', lw=2))
-
-                    plt.colorbar(label='Connectivity Strength')
-                    plt.clim(-vlim, vlim)
-                    plt.xticks(ticks=np.arange(fc_mat.shape[0]), labels=chan_list_eeg_short, rotation=90)
-                    plt.yticks(ticks=np.arange(fc_mat.shape[0]), labels=chan_list_eeg_short)
-                    plt.xlabel("Electrodes")
-                    plt.ylabel("Electrodes")
-                    if fc_metric == 'MI':
-                        plt.title(f"MI FC start{np.round(time_vec[start_window[win_i]], 2)}")
-                    else:
-                        plt.title(f"{fc_metric} {band} FC start{np.round(time_vec[start_window[win_i]], 2)}")
-                    plt.show()
-
-                # Create topoplot frames
-                fig, ax = plt.subplots()
-                cax = ax.matshow(np.zeros((len(chan_list_eeg_short), len(chan_list_eeg_short))), cmap='seismic', vmin=-vlim, vmax=vlim)
-                colorbar = plt.colorbar(cax, ax=ax)
-
-                def update(frame):
-                    
-                    ax.clear()
-                    ax.set_title(np.round(time_vec[start_window[frame]], 5))
-                    
-                    ax.matshow(data_chunk_wins[frame,:,:], cmap='seismic', vmin=-vlim, vmax=vlim)
-
-                    for i in range(chan_list_eeg_short.shape[0]):
-                        for j in range(chan_list_eeg_short.shape[0]):
-                            if cluster_mask_wins[frame, i, j]:
-                                rect = plt.Rectangle((j - 0.5, i - 0.5), 1, 1, 
-                                                edgecolor='green', facecolor='none', lw=4)
-                                ax.add_patch(rect)
-
-                    ax.set_xticks(ticks=np.arange(chan_list_eeg_short.shape[0]), labels=chan_list_eeg_short, rotation=90)
-                    ax.set_yticks(ticks=np.arange(chan_list_eeg_short.shape[0]), labels=chan_list_eeg_short)
-                    ax.set_xlabel("Electrodes")
-                    ax.set_ylabel("Electrodes")
-                    ax.set_title(f"MI FC start{np.round(time_vec[start_window[frame]], 2)}")
-
-                    return [ax]
-
-                # Animation
-                ani = FuncAnimation(fig, update, frames=n_times, interval=1000)
-                # plt.show()
-
-                os.chdir(os.path.join(path_results, 'FC', fc_metric, 'matplot'))
                 
-                if stretch:
-                    if fc_metric == 'MI':
-                        ani.save(f"stretch_{fc_metric}_FC_mat_animation_allsujet.gif", writer="pillow")
+                def get_visu_data_matsigni(time_window):
+
+                    time_chunk_points = int(time_window * srate)
+                    start_window = np.arange(0, time_vec.size, time_chunk_points)
+                    start_window_sec = time_vec[start_window]
+                    n_times = np.arange(start_window.size)
+                    
+                    cluster_mask_wins = np.zeros((start_window.size, len(chan_list_eeg_short), len(chan_list_eeg_short)))
+                    data_chunk_wins = np.zeros((start_window.size, len(chan_list_eeg_short), len(chan_list_eeg_short)))
+
+                    #win_i, win_start = 15, start_window[15]
+                    for win_i, win_start in enumerate(start_window):
+
+                        if win_start == start_window[-1]:
+                            continue
+                        
+                        win_stop = start_window[win_i+1]
+
+                        _fc_mat = np.zeros((len(chan_list_eeg_short), len(chan_list_eeg_short)))
+                        _cluster_mat = np.zeros((len(chan_list_eeg_short), len(chan_list_eeg_short)))
+
+                        #pair_i, pair = 2, pairs_to_compute[2]
+                        for pair_i, pair in enumerate(pairs_to_compute):
+                            A, B = pair.split('-')
+                            A_i, B_i = np.where(chan_list_eeg_short == A)[0][0], np.where(chan_list_eeg_short == B)[0][0]
+                            cond_i, baseline_i = np.where(fc_allsujet['cond'].values == 'CHARGE')[0][0], np.where(fc_allsujet['cond'].values == 'VS')[0][0] 
+
+                            if fc_metric == 'MI':
+                                data_chunk_diff = fc_allsujet[:, pair_i, cond_i, win_start:win_stop].mean('sujet').values - fc_allsujet[:, pair_i, baseline_i, win_start:win_stop].mean('sujet').values
+                                _clusters = clusters_time[pair_i, win_start:win_stop].values
+                            else:
+                                data_chunk_diff = fc_allsujet[:, band_i, cond_i, pair_i, win_start:win_stop].mean('sujet').values - fc_allsujet[:, band_i, baseline_i, pair_i, win_start:win_stop].mean('sujet').values
+                                _clusters = clusters_time[band_i, pair_i, win_start:win_stop].values
+
+                            fc_val = data_chunk_diff.mean()
+                            if _clusters.sum() > 0:
+                                _fc_mat[A_i, B_i], _fc_mat[B_i, A_i] = fc_val, fc_val
+                            
+                            cluster_val = _clusters.sum() > 0
+                            _cluster_mat[A_i, B_i], _cluster_mat[B_i, A_i] = cluster_val, cluster_val
+
+                        data_chunk_wins[win_i, :,:] = _fc_mat
+                        cluster_mask_wins[win_i, :,:] = _cluster_mat
+
+                    return n_times, start_window, data_chunk_wins, cluster_mask_wins
+                
+                def update_fullmat(frame):
+                        
+                        ax.clear()
+                        ax.set_title(np.round(time_vec[start_window[frame]], 5))
+                        
+                        ax.imshow(data_chunk_wins[frame,:,:], cmap='seismic', vmin=-vlim, vmax=vlim)
+
+                        for i in range(chan_list_eeg_short.shape[0]):
+                            for j in range(chan_list_eeg_short.shape[0]):
+                                if cluster_mask_wins[frame, i, j]:
+                                    rect = plt.Rectangle((j - 0.5, i - 0.5), 1, 1, 
+                                                    edgecolor='green', facecolor='none', lw=4)
+                                    ax.add_patch(rect)
+
+                        ax.set_xticks(ticks=np.arange(chan_list_eeg_short.shape[0]), labels=chan_list_eeg_short, rotation=90)
+                        ax.set_yticks(ticks=np.arange(chan_list_eeg_short.shape[0]), labels=chan_list_eeg_short)
+                        ax.set_xlabel("Electrodes")
+                        ax.set_ylabel("Electrodes")
+                        ax.set_title(f"MI FC start{np.round(time_vec[start_window[frame]], 2)}")
+
+                        return [ax]
+                
+                def update_matsigni(frame):
+                        
+                        ax.clear()
+                        ax.set_title(np.round(time_vec[start_window[frame]], 5))
+                        
+                        ax.imshow(data_chunk_wins[frame,:,:], cmap='seismic', vmin=-vlim, vmax=vlim)
+
+                        ax.set_xticks(ticks=np.arange(chan_list_eeg_short.shape[0]), labels=chan_list_eeg_short, rotation=90)
+                        ax.set_yticks(ticks=np.arange(chan_list_eeg_short.shape[0]), labels=chan_list_eeg_short)
+                        ax.set_xlabel("Electrodes")
+                        ax.set_ylabel("Electrodes")
+                        ax.set_title(f"MI FC start{np.round(time_vec[start_window[frame]], 2)}")
+
+                        return [ax]
+                
+                for fc_type in ['fullmat', 'matsigni']:
+
+                    time_window = 0.1#in s
+                    if fc_type == 'fullmat':
+                        n_times, start_window, data_chunk_wins, cluster_mask_wins = get_visu_data_fullmat(time_window)
+                    elif fc_type == 'matsigni':
+                        n_times, start_window, data_chunk_wins, cluster_mask_wins = get_visu_data_matsigni(time_window)
+                    vlim = np.abs((data_chunk_wins.min(), data_chunk_wins.max())).max()
+
+                    if debug:
+
+                        win_i = 15
+
+                        plt.matshow(data_chunk_wins[win_i,:,:], cmap='seismic')
+
+                        for i in range(chan_list_eeg_short.shape[0]):
+                            for j in range(chan_list_eeg_short.shape[0]):
+                                if cluster_mask_wins[win_i, i, j]:
+                                    plt.gca().add_patch(plt.Rectangle((j - 0.5, i - 0.5), 1, 1, edgecolor='green', facecolor='none', lw=2))
+
+                        plt.colorbar(label='Connectivity Strength')
+                        plt.clim(-vlim, vlim)
+                        plt.xticks(ticks=np.arange(fc_mat.shape[0]), labels=chan_list_eeg_short, rotation=90)
+                        plt.yticks(ticks=np.arange(fc_mat.shape[0]), labels=chan_list_eeg_short)
+                        plt.xlabel("Electrodes")
+                        plt.ylabel("Electrodes")
+                        if fc_metric == 'MI':
+                            plt.title(f"MI FC start{np.round(time_vec[start_window[win_i]], 2)}")
+                        else:
+                            plt.title(f"{fc_metric} {band} FC start{np.round(time_vec[start_window[win_i]], 2)}")
+                        plt.show()
+
+                    # Create topoplot frames
+                    fig, ax = plt.subplots()
+                    cax = ax.matshow(np.zeros((len(chan_list_eeg_short), len(chan_list_eeg_short))), cmap='seismic', vmin=-vlim, vmax=vlim)
+                    colorbar = plt.colorbar(cax, ax=ax)
+
+                    # Animation
+                    if fc_type == 'fullmat':
+                        ani = FuncAnimation(fig, update_fullmat, frames=n_times, interval=1000)
+                    elif fc_type == 'matsigni':
+                        ani = FuncAnimation(fig, update_matsigni, frames=n_times, interval=1000)
+                    # plt.show()
+
+                    os.chdir(os.path.join(path_results, 'FC', fc_metric, 'matplot'))
+                    
+                    if stretch:
+                        if fc_metric == 'MI':
+                            ani.save(f"stretch_{fc_metric}_FC_mat_animation_allsujet_{fc_type}.gif", writer="pillow")
+                        else:
+                            ani.save(f"stretch_{fc_metric}_{band}_FC_mat_animation_allsujet_{fc_type}.gif", writer="pillow")  
                     else:
-                        ani.save(f"stretch_{fc_metric}_{band}_FC_mat_animation_allsujet.gif", writer="pillow")  
-                else:
-                    if fc_metric == 'MI':
-                        ani.save(f"nostretch_{fc_metric}_FC_mat_animation_allsujet.gif", writer="pillow")
-                    else:
-                        ani.save(f"nostretch_{fc_metric}_{band}_FC_mat_animation_allsujet.gif", writer="pillow")  
+                        if fc_metric == 'MI':
+                            ani.save(f"nostretch_{fc_metric}_FC_mat_animation_allsujet_{fc_type}.gif", writer="pillow")
+                        else:
+                            ani.save(f"nostretch_{fc_metric}_{band}_FC_mat_animation_allsujet_{fc_type}.gif", writer="pillow")  
 
 
 

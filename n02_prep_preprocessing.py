@@ -472,7 +472,7 @@ def ICA_computation(data_eeg, info_eeg):
     if debug == True :
 
         # compare before after
-        compare_pre_post(data_pre=data_eeg, data_post=raw_ICA_export, srate=srate, chan_name='C3')
+        compare_pre_post(data_pre=data_eeg, data_post=raw_ICA_export, srate=srate, chan_name='Fp2')
 
         duration = .5
         n_chan = 10
@@ -918,10 +918,10 @@ if __name__== '__main__':
     ######## GENERATE PREPROC FILES ########
     ########################################
 
-    #sujet = sujet_list[0]
+    #sujet = sujet_list[2]
     for sujet in sujet_list:
 
-        #cond = cond_list[1]
+        #cond = cond_list[0]
         for cond in cond_list:
 
             ########################################
