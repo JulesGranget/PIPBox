@@ -68,9 +68,7 @@ def save_tf_allsujet(chan):
     #### load data thresh
     os.chdir(os.path.join(path_precompute, 'TF', 'STRETCH_STATS'))
     
-    stats_allcond = {}
-    for cond in cond_list:
-        stats_allcond[cond] = np.load(f'{chan}_{cond}_allsujet_tf_STATS.npy')
+    stats_allcond = np.load(f'{chan}_allsujet_tf_STATS.npy')
 
     #### scale    
     vlim = np.abs(np.array([data_allcond['VS'].min(), data_allcond['CHARGE'].min(), data_allcond['VS'].max(), data_allcond['CHARGE'].max()])).max()
@@ -99,7 +97,7 @@ def save_tf_allsujet(chan):
         ax.set_yscale('log')
 
         #### stats
-        ax.contour(time_vec, frex, stats_allcond[cond], levels=0, colors='g')
+        ax.contour(time_vec, frex, stats_allcond, levels=0, colors='g')
 
         ax.vlines(stretch_point_ERP/2, ymin=frex[0], ymax=frex[-1], colors='g')
         ax.set_yticks([2,8,10,30,50,100,150], labels=[2,8,10,30,50,100,150])
@@ -198,6 +196,135 @@ def save_tf_subjectwise(chan):
 
     
 
+#################################
+######## TOPOPLOT TF ########
+#################################
+
+
+
+def save_topoplot_allsujet():
+
+    print(f'#### COMPUTE TOPOPLOT ####', flush=True)
+
+    #### params
+    phase_list = ['I', 'T_IE', 'E', 'T_EI']
+    phase_shift = 125 
+    # 0-125, 125-375, 375-625, 625-875, 875-1000, shift on origial TF
+    phase_vec = {'I' : np.arange(250), 'T_IE' : np.arange(250)+250, 'E' : np.arange(250)+500, 'T_EI' : np.arange(250)+750} 
+
+    point_thresh = 0.05
+
+    mask_params = dict(markersize=15, markerfacecolor='y')
+
+    ch_types = ['eeg'] * len(chan_list_eeg_short)
+    info = mne.create_info(chan_list_eeg_short.tolist(), ch_types=ch_types, sfreq=srate)
+    info.set_montage('standard_1020')
+
+    #### load data
+    print('#### LOAD DATA ####', flush=True)
+
+    tf = np.zeros((len(cond_list), len(chan_list_eeg_short), nfrex, stretch_point_ERP))
+    tf_stretch_allsujet = np.zeros((len(sujet_list), len(chan_list_eeg_short), nfrex, stretch_point_ERP))
+
+    os.chdir(os.path.join(path_precompute, 'TF', 'STRETCH'))
+
+    for cond_i, cond in enumerate(cond_list):
+
+        print(cond)
+
+        #sujet_i, sujet = 46, sujet_list[46]
+        for sujet_i, sujet in enumerate(sujet_list):
+
+            tf_stretch_allsujet[sujet_i,:,:,:] = np.load(f'{sujet}_{cond}_tf_stretch.npy')
+
+        tf[cond_i, :, :, :] = np.median(tf_stretch_allsujet, axis=0)
+
+    tf_diff = tf[1,:,:,:] - tf[0,:,:,:]
+
+    if debug:
+
+        plt.pcolormesh(tf_diff[0,:,:])
+        plt.show()
+    
+    #### load stats
+    print('#### LOAD STATS ####', flush=True)
+
+    os.chdir(os.path.join(path_precompute, 'TF', 'STRETCH_STATS'))
+
+    stats_tf = np.zeros((len(chan_list_eeg_short), nfrex, stretch_point_ERP))
+    
+    for chan_i, chan in enumerate(chan_list_eeg_short):
+
+        stats_tf[chan_i,:] = np.load(f'{chan}_allsujet_tf_STATS.npy')
+
+    #### shift data
+    tf_diff_shift = np.concat((tf_diff[:,:,phase_shift:], tf_diff[:,:,:phase_shift]), axis=-1)
+    stats_tf_shift = np.concat((stats_tf[:,:,phase_shift:], stats_tf[:,:,:phase_shift]), axis=-1)
+
+    if debug:
+
+        plt.pcolormesh(tf_diff_shift[0,:,:])
+        plt.show()
+
+    #### chunk data
+    print('CHUNK')
+    topoplot_data = np.zeros((len(phase_list), len(freq_band_fc_list), len(chan_list_eeg_short)))
+    topoplot_signi = np.zeros((len(phase_list), len(freq_band_fc_list), len(chan_list_eeg_short)), dtype='bool')
+
+    #phase_i, phase = 0, phase_list[0]
+    for phase_i, phase in enumerate(phase_list):
+
+        #band_i, band = 0, freq_band_fc_list[0]
+        for band_i, band in enumerate(freq_band_fc_list):
+
+            frex_mask = (frex >= freq_band_fc[band][0]) & (frex < freq_band_fc[band][1]) 
+            tf_chunk = tf_diff_shift[:,:,phase_vec[phase]][:,frex_mask,:]
+            stats_chunk = stats_tf_shift[:,:,phase_vec[phase]][:,frex_mask,:]
+
+            for chan_i, chan in enumerate(chan_list_eeg_short):
+
+                if stats_chunk[chan_i,:,:].sum() >= point_thresh*stats_chunk[chan_i,:,:].size:
+
+                    topoplot_data[phase_i, band_i, chan_i] = np.median(tf_chunk[chan_i,:,:][stats_chunk[chan_i,:,:].astype('bool')])
+                    topoplot_signi[phase_i, band_i, chan_i] = True
+
+    #### vlim
+    vlim = np.zeros((len(freq_band_fc_list)))
+    #band_i, band = 0, freq_band_fc_list[0]
+    for band_i, band in enumerate(freq_band_fc_list):
+
+        vlim[band_i] = np.abs(np.array([topoplot_data[:, band_i, :].reshape(-1).min(), topoplot_data[:, band_i, :].reshape(-1).max()])).max()
+ 
+    #### plot
+    os.chdir(os.path.join(path_results, 'TF', 'allsujet'))
+
+    #band_i, band = 0, freq_band_fc_list[0]
+    for band_i, band in enumerate(freq_band_fc_list):
+
+        fig, axs = plt.subplots(nrows=1, ncols=len(phase_list), figsize=(15,5))
+
+        #phase_i, phase = 0, phase_list[0]
+        for phase_i, phase in enumerate(phase_list):
+
+            ax = axs[phase_i]
+
+            mne.viz.plot_topomap(data=topoplot_data[phase_i, band_i, :], axes=ax, show=False, names=chan_list_eeg_short, pos=info,
+                            mask=topoplot_data[phase_i, band_i, :], mask_params=mask_params, vlim=(-vlim[band_i], vlim[band_i]), cmap='seismic', extrapolate='local')
+
+            ax.set_title(f'{phase}')
+
+        plt.suptitle(f'{band} lim:{np.round(vlim[band_i],2)}')
+
+        # plt.show()
+
+        fig.savefig(f"topoplot_{band}_allsujet.jpeg")
+
+        plt.close('all')
+        
+        
+
+
+
 
 
 
@@ -213,6 +340,8 @@ if __name__ == '__main__':
                 
         save_tf_allsujet(chan)
         save_tf_subjectwise(chan)
+
+    save_topoplot_allsujet()
 
         
 

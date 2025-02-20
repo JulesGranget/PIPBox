@@ -63,12 +63,17 @@ def compute_stats_MI_allsujet_state(stretch):
 
         if stretch:
 
-            phase_list = ['whole', 'inspi', 'expi']
-            phase_vec = {'whole' : time_vec, 'inspi' : np.arange(stretch_point_ERP/2).astype('int'), 'expi' : (np.arange(stretch_point_ERP/2)+stretch_point_ERP/2).astype('int')}
+            phase_list = ['whole', 'I', 'T_IE', 'E', 'T_EI']
+            phase_shift = 125 
+            # 0-125, 125-375, 375-625, 625-875, 875-1000, shift on origial TF
+            phase_vec = {'whole' : np.arange(stretch_point_ERP), 'I' : np.arange(250), 'T_IE' : np.arange(250)+250, 'E' : np.arange(250)+500, 'T_EI' : np.arange(250)+750} 
 
             # pvals_wk = np.zeros((len(phase_list), pairs_to_compute.size))
             pvals_perm = np.zeros((len(phase_list), pairs_to_compute.size))
 
+            shifted_fc_allsujet = fc_allsujet.roll(time=-phase_shift, roll_coords=False)
+
+            #phase_i, phase = 0, phase_list[0]
             for phase_i, phase in enumerate(phase_list):
 
                 print(phase)
@@ -78,8 +83,11 @@ def compute_stats_MI_allsujet_state(stretch):
 
                     # print_advancement(pair_i, len(pairs_to_compute))
 
-                    data_baseline = np.median(fc_allsujet.loc[:, pair, 'VS', phase_vec[phase]].values, axis=1)
-                    data_cond = np.median(fc_allsujet.loc[:, pair, 'CHARGE', phase_vec[phase]].values, axis=1)
+                    data_baseline = np.median(shifted_fc_allsujet.loc[:, pair, 'VS', phase_vec[phase]].values, axis=1)
+                    data_cond = np.median(shifted_fc_allsujet.loc[:, pair, 'CHARGE', phase_vec[phase]].values, axis=1)
+
+                    # stat, pvals_wk[phase_i, pair_i] = scipy.stats.wilcoxon(data_baseline, data_cond)
+                    pvals_perm[phase_i, pair_i] = get_permutation_2groups(data_baseline, data_cond, n_surr_fc)
 
                     if debug:
 
@@ -89,9 +97,6 @@ def compute_stats_MI_allsujet_state(stretch):
                         plt.vlines([np.median(data_cond)], ymin=0, ymax=10, color='r')
                         plt.legend()
                         plt.show()
-
-                    # stat, pvals_wk[phase_i, pair_i] = scipy.stats.wilcoxon(data_baseline, data_cond)
-                    pvals_perm[phase_i, pair_i] = get_permutation_wilcoxon_2groups(data_baseline, data_cond, n_surr_fc)
 
             # Apply Benjamini-Hochberg correction
             # reject, pvals_adjusted, _, _ = multipletests(pvals_wk, alpha=0.05, method='fdr_bh')
@@ -135,7 +140,7 @@ def compute_stats_MI_allsujet_state(stretch):
                     plt.show()
 
                 # stat, pvals_wk[pair_i] = scipy.stats.wilcoxon(data_baseline, data_cond)
-                pvals_perm[pair_i] = get_permutation_wilcoxon_2groups(data_baseline, data_cond, n_surr_fc)
+                pvals_perm[pair_i] = get_permutation_2groups(data_baseline, data_cond, n_surr_fc)
 
 
             # Apply Benjamini-Hochberg correction
@@ -161,7 +166,7 @@ def compute_stats_MI_allsujet_state(stretch):
 #stretch = True
 def compute_stats_ispc_wpli_allsujet_state(stretch):
 
-    #fc_metric = 'ISPC'
+    #fc_metric = 'WPLI'
     for fc_metric in ['WPLI', 'ISPC']:
 
         #### verify computation
@@ -197,11 +202,15 @@ def compute_stats_ispc_wpli_allsujet_state(stretch):
 
         if stretch:
 
-            phase_list = ['whole', 'inspi', 'expi']
-            phase_vec = {'whole' : time_vec, 'inspi' : np.arange(stretch_point_ERP/2).astype('int'), 'expi' : (np.arange(stretch_point_ERP/2)+stretch_point_ERP/2).astype('int')}
+            phase_list = ['whole', 'I', 'T_IE', 'E', 'T_EI']
+            phase_shift = 125 
+            # 0-125, 125-375, 375-625, 625-875, 875-1000, shift on origial TF
+            phase_vec = {'whole' : np.arange(stretch_point_ERP), 'I' : np.arange(250), 'T_IE' : np.arange(250)+250, 'E' : np.arange(250)+500, 'T_EI' : np.arange(250)+750} 
 
             # pvals_wk = np.zeros((len(phase_list), len(freq_band_fc_list), pairs_to_compute.size))
             pvals_perm = np.zeros((len(phase_list), len(freq_band_fc_list), pairs_to_compute.size))
+
+            shifted_fc_allsujet = fc_allsujet.roll(time=-phase_shift, roll_coords=False)
 
             for phase_i, phase in enumerate(phase_list):
 
@@ -214,20 +223,22 @@ def compute_stats_ispc_wpli_allsujet_state(stretch):
 
                         # print_advancement(pair_i, len(pairs_to_compute))
 
-                        data_baseline = np.median(fc_allsujet.loc[:, band, 'VS', pair, phase_vec[phase]].values, axis=1)
-                        data_cond = np.median(fc_allsujet.loc[:, band, 'CHARGE', pair, phase_vec[phase]].values, axis=1)
+                        data_baseline = np.median(shifted_fc_allsujet.loc[:, band, 'VS', pair, phase_vec[phase]].values, axis=1)
+                        data_cond = np.median(shifted_fc_allsujet.loc[:, band, 'CHARGE', pair, phase_vec[phase]].values, axis=1)
+
+                        # stat, pvals_wk[band_i, pair_i] = scipy.stats.wilcoxon(data_baseline, data_cond)
+                        pvals_perm[phase_i, band_i, pair_i] = get_permutation_2groups(data_baseline, data_cond, n_surr_fc)
 
                         if debug:
 
-                            plt.hist(data_baseline, bins=50, alpha=0.5, label='VS')
-                            plt.hist(data_cond, bins=50, alpha=0.5, label='CHARGE')
-                            plt.vlines([np.median(data_baseline)], ymin=0, ymax=10, color='r')
+                            plt.hist(data_baseline, bins=50, alpha=0.5, label='VS', color='b')
+                            plt.hist(data_cond, bins=50, alpha=0.5, label='CHARGE', color='r')
+                            plt.vlines([np.median(data_baseline)], ymin=0, ymax=10, color='b')
                             plt.vlines([np.median(data_cond)], ymin=0, ymax=10, color='r')
+                            plt.title(f"signi:{pvals_perm[phase_i, band_i, pair_i]}")
                             plt.legend()
                             plt.show()
 
-                        # stat, pvals_wk[band_i, pair_i] = scipy.stats.wilcoxon(data_baseline, data_cond)
-                        pvals_perm[phase_i, band_i, pair_i] = get_permutation_wilcoxon_2groups(data_baseline, data_cond, n_surr_fc)
 
             # Apply Benjamini-Hochberg correction
             # for band_i in range(len(freq_band_fc_list)):
@@ -276,7 +287,7 @@ def compute_stats_ispc_wpli_allsujet_state(stretch):
                         plt.show()
 
                     # stat, pvals_wk[band_i, pair_i] = scipy.stats.wilcoxon(data_baseline, data_cond)
-                    pvals_perm[band_i, pair_i] = get_permutation_wilcoxon_2groups(data_baseline, data_cond, n_surr_fc)
+                    pvals_perm[band_i, pair_i] = get_permutation_2groups(data_baseline, data_cond, n_surr_fc)
 
             # Apply Benjamini-Hochberg correction
             # for band_i in range(len(freq_band_fc_list)):

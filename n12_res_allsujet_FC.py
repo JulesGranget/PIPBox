@@ -206,7 +206,7 @@ def plot_allsujet_FC_chunk():
 
 def plot_allsujet_FC_mat():
 
-    #stretch = False
+    #stretch = True
     for stretch in [True, False]:
 
         #fc_metric = 'MI'
@@ -226,8 +226,12 @@ def plot_allsujet_FC_mat():
 
             pairs_to_compute = fc_allsujet['pair'].values
             time_vec = fc_allsujet['time'].values
-            phase_list = ['whole', 'inspi', 'expi']
-            phase_vec = {'whole' : time_vec, 'inspi' : np.arange(stretch_point_ERP/2).astype('int'), 'expi' : (np.arange(stretch_point_ERP/2)+stretch_point_ERP/2).astype('int')}
+            phase_list = ['whole', 'I', 'T_IE', 'E', 'T_EI']
+            phase_shift = 125 
+            # 0-125, 125-375, 375-625, 625-875, 875-1000, shift on origial TF
+            phase_vec = {'whole' : np.arange(stretch_point_ERP), 'I' : np.arange(250), 'T_IE' : np.arange(250)+250, 'E' : np.arange(250)+500, 'T_EI' : np.arange(250)+750} 
+
+            shifted_fc_allsujet = fc_allsujet.roll(time=-phase_shift, roll_coords=False)
 
             #band_i, band = 0, freq_band_fc_list
             for band_i, band in enumerate(freq_band_fc_list):
@@ -254,10 +258,10 @@ def plot_allsujet_FC_mat():
                             A_i, B_i = np.where(chan_list_eeg_short == A)[0][0], np.where(chan_list_eeg_short == B)[0][0]
 
                             if fc_metric == 'MI':
-                                data_chunk_diff = fc_allsujet.loc[:, pair, 'CHARGE', phase_vec[phase]].mean('sujet').values - fc_allsujet.loc[:, pair, 'VS', phase_vec[phase]].mean('sujet').values
+                                data_chunk_diff = shifted_fc_allsujet.loc[:, pair, 'CHARGE', phase_vec[phase]].mean('sujet').values - shifted_fc_allsujet.loc[:, pair, 'VS', phase_vec[phase]].mean('sujet').values
                                 
                             else:
-                                data_chunk_diff = fc_allsujet.loc[:, band, 'CHARGE', pair, phase_vec[phase]].mean('sujet').values - fc_allsujet.loc[:, band, 'VS', pair, phase_vec[phase]].mean('sujet').values
+                                data_chunk_diff = shifted_fc_allsujet.loc[:, band, 'CHARGE', pair, phase_vec[phase]].mean('sujet').values - shifted_fc_allsujet.loc[:, band, 'VS', pair, phase_vec[phase]].mean('sujet').values
 
                             fc_val = data_chunk_diff.mean()
 
@@ -324,6 +328,13 @@ def plot_allsujet_FC_mat():
                                 plt.savefig(f'stretch_{fc_metric}_{band}_FC_{fc_type}.jpeg', dpi=150)
                             else:
                                 plt.savefig(f'nostretch_{fc_metric}_{band}_FC_{fc_type}.jpeg', dpi=150)
+
+                        if stretch and fc_type == "signimat":
+                            os.chdir(os.path.join(path_results, 'FC', fc_metric, 'matplot', 'summary'))
+                            if fc_metric == 'MI':
+                                plt.savefig(f'stretch_MI_FC_{fc_type}.jpeg', dpi=150)
+                            else:
+                                plt.savefig(f'stretch_{fc_metric}_{band}_FC_{fc_type}.jpeg', dpi=150)
 
                         plt.close('all')
                         gc.collect()
@@ -603,11 +614,11 @@ def plot_allsujet_FC_mat():
 
 
 
-def plot_allsujet_FC_graph_nostretch():
+def plot_allsujet_FC_graph_stretch():
 
-    stretch=False
+    stretch=True
 
-    #fc_metric = 'ISPC'
+    #fc_metric = 'WPLI'
     for fc_metric in ['MI', 'ISPC', 'WPLI']:
 
         print(f'{fc_metric} PLOT stretch:{stretch}', flush=True)
@@ -615,23 +626,33 @@ def plot_allsujet_FC_graph_nostretch():
         os.chdir(os.path.join(path_precompute, 'FC', fc_metric))
         if stretch:
             fc_allsujet = xr.open_dataarray(f'{fc_metric}_allsujet_stretch.nc')
-            clusters = xr.open_dataarray(f'{fc_metric}_allsujet_STATS_stretch.nc')
+            clusters = xr.open_dataarray(f'{fc_metric}_allsujet_STATS_state_stretch.nc')
         else:
             fc_allsujet = xr.open_dataarray(f'{fc_metric}_allsujet.nc')
-            clusters = xr.open_dataarray(f'{fc_metric}_allsujet_STATS.nc')
+            clusters = xr.open_dataarray(f'{fc_metric}_allsujet_STATS_state.nc')
 
         pairs_to_compute = fc_allsujet['pair'].values
         time_vec = fc_allsujet['time'].values
+        phase_list = ['whole', 'inspi', 'expi']
+        phase_vec = {'whole' : time_vec, 'inspi' : np.arange(stretch_point_ERP/2).astype('int'), 'expi' : (np.arange(stretch_point_ERP/2)+stretch_point_ERP/2).astype('int')}
 
+        #band_i, band = 0, freq_band_fc_list
         for band_i, band in enumerate(freq_band_fc_list):
 
-            #### generate matrix
-            fc_mat_cond = np.zeros((len(sujet_list), len(cond_list), len(chan_list_eeg_short), len(chan_list_eeg_short)))
+            fc_mat = np.zeros((len(phase_list), len(cond_list), len(chan_list_eeg_short), len(chan_list_eeg_short)))
+            fc_mat_mask_signi = np.zeros((len(phase_list), len(cond_list), len(chan_list_eeg_short), len(chan_list_eeg_short)))
+            fc_mat_only_signi = np.zeros((len(phase_list), len(cond_list), len(chan_list_eeg_short), len(chan_list_eeg_short)))
 
-            for sujet_i, sujet in enumerate(sujet_list):
+            for cond_i, cond in enumerate(cond_list):
 
-                for cond_i, cond in enumerate(cond_list):
-                
+                #phase_i, phase = 0, 'whole'
+                for phase_i, phase in enumerate(phase_list):
+
+                    if fc_metric == 'MI':
+                        fc_mat_mask_signi[phase_i,cond_i,:,:] = from_pairs_2mat(clusters.loc[phase,:], pairs_to_compute)
+                    else:
+                        fc_mat_mask_signi[phase_i,cond_i,:,:] = from_pairs_2mat(clusters.loc[phase,band,:], pairs_to_compute)
+
                     #pair_i, pair = 2, pairs_to_compute[2]
                     for pair_i, pair in enumerate(pairs_to_compute):
 
@@ -639,310 +660,178 @@ def plot_allsujet_FC_graph_nostretch():
                         A_i, B_i = np.where(chan_list_eeg_short == A)[0][0], np.where(chan_list_eeg_short == B)[0][0]
 
                         if fc_metric == 'MI':
-                            fc_val = fc_allsujet.loc[sujet, pair, cond, time_vec].values.mean()
+                            data_chunk = fc_allsujet.loc[:, pair, cond, phase_vec[phase]].mean('sujet').values
+                            
                         else:
-                            fc_val = fc_allsujet.loc[sujet, band, cond, pair, time_vec].values.mean()
+                            data_chunk = fc_allsujet.loc[:, band, cond, pair, phase_vec[phase]].mean('sujet').values
 
-                        fc_mat_cond[sujet_i, cond_i, A_i, B_i], fc_mat_cond[sujet_i, cond_i, B_i, A_i] = fc_val, fc_val
+                        fc_val = data_chunk.mean()
 
-            fc_mat_cond = xr.DataArray(data=fc_mat_cond, dims=['sujet', 'cond', 'chanA', 'chanB'], coords=[sujet_list, cond_list,chan_list_eeg_short, chan_list_eeg_short])
+                        fc_mat[phase_i, cond_i, A_i, B_i], fc_mat[phase_i, cond_i, B_i, A_i] = fc_val, fc_val
+
+                        if fc_metric == 'MI' and clusters.loc[phase,pair].values.astype('bool'):
+                            fc_mat_only_signi[phase_i, cond_i, A_i, B_i], fc_mat_only_signi[phase_i, cond_i, B_i, A_i] = fc_val, fc_val
+                        elif fc_metric != 'MI' and clusters.loc[phase,band,pair].values.astype('bool'):
+                            fc_mat_only_signi[phase_i, cond_i, A_i, B_i], fc_mat_only_signi[phase_i, cond_i, B_i, A_i] = fc_val, fc_val
 
             if debug:
 
-                plt.matshow(fc_mat_cond[0,:,:])
-                plt.colorbar(label='Connectivity Strength')
-                plt.xticks(ticks=np.arange(fc_mat_cond[0,:,:].shape[0]), labels=chan_list_eeg_short, rotation=90)
-                plt.yticks(ticks=np.arange(fc_mat_cond[0,:,:].shape[0]), labels=chan_list_eeg_short)
-                plt.xlabel("Electrodes")
-                plt.ylabel("Electrodes")
-                plt.title(f"{fc_metric} FC")
+                plt.imshow(fc_mat[0,0,:,:])
                 plt.show()
 
-            #mat = fc_mat_cond[0]
-            def thresh_fc_mat(mat, percentile_graph_metric=50):
+                plt.imshow(fc_mat_only_signi[0,0,:,:])
+                plt.show()
 
-                mat_values = mat[np.triu_indices(mat.shape[0], k=1)]
-                
-                if debug:
-                    np.sum(mat_values > np.percentile(mat_values, 90))
+                plt.imshow(fc_mat_mask_signi[0,0,:,:])
+                plt.show()
 
-                    count, bin, fig = plt.hist(mat_values)
-                    plt.vlines(np.percentile(mat_values, 99), ymin=count.min(), ymax=count.max(), color='r')
-                    plt.vlines(np.percentile(mat_values, 95), ymin=count.min(), ymax=count.max(), color='r')
-                    plt.vlines(np.percentile(mat_values, 90), ymin=count.min(), ymax=count.max(), color='r')
-                    plt.vlines(np.percentile(mat_values, 75), ymin=count.min(), ymax=count.max(), color='r')
-                    plt.show()
+            #mat, mask_graph_metric = fc_mat[0, 0, :, :], fc_mat_mask_signi[0,0,:,:]
+            def thresh_fc_mat(mat, mode='mask', percentile_graph_metric=50, mask_graph_metric=None):
 
-                #### apply thresh
-                for chan_i in range(mat.shape[0]):
-                    mat[chan_i,:][np.where(mat[chan_i,:] < np.percentile(mat_values, percentile_graph_metric))[0]] = 0
+                if mode == 'percentile':
 
-                #### verify that the graph is fully connected
-                chan_i_to_remove = []
-                for chan_i in range(mat.shape[0]):
-                    if np.sum(mat[chan_i,:]) == 0:
-                        chan_i_to_remove.append(chan_i)
+                    mat_thresh = mat.copy()
 
-                mat_i_mask = [i for i in range(mat.shape[0]) if i not in chan_i_to_remove]
-
-                if len(chan_i_to_remove) != 0:
-                    for row in range(2):
-                        if row == 0:
-                            mat = mat[mat_i_mask,:]
-                        elif row == 1:
-                            mat = mat[:,mat_i_mask]
-
-                if debug:
-                    plt.matshow(mat)
-                    plt.show()
-
-                return mat
-            
-            df_graph_metrics = pd.DataFrame()
-
-            for sujet in sujet_list:
-
-                for cond in cond_list:
-
-                    # Create a graph from the adjacency matrix
-                    mat = thresh_fc_mat(fc_mat_cond.loc[sujet,cond,:,:].values)
-                    graph = nx.from_numpy_array(mat)
-                    nx.relabel_nodes(graph, mapping=dict(enumerate(chan_list_eeg_short)), copy=False)
-
+                    mat_values = mat[np.triu_indices(mat.shape[0], k=1)]
+                    
                     if debug:
-                        # Plot the graph
-                        plt.figure(figsize=(10, 8))
-                        pos = nx.spring_layout(graph)  # Layout for visualization
-                        nx.draw(graph, pos, with_labels=True, node_color='skyblue', edge_color='gray', node_size=700, font_size=10)
-                        plt.title("Graph Visualization")
+                        np.sum(mat_values > np.percentile(mat_values, 90))
+
+                        count, bin, fig = plt.hist(mat_values)
+                        plt.vlines(np.percentile(mat_values, 99), ymin=count.min(), ymax=count.max(), color='r')
+                        plt.vlines(np.percentile(mat_values, 95), ymin=count.min(), ymax=count.max(), color='r')
+                        plt.vlines(np.percentile(mat_values, 90), ymin=count.min(), ymax=count.max(), color='r')
+                        plt.vlines(np.percentile(mat_values, 75), ymin=count.min(), ymax=count.max(), color='r')
                         plt.show()
 
+                    #### apply thresh
+                    for chan_i in range(mat.shape[0]):
+                        mat_thresh[chan_i,:][np.where(mat[chan_i,:] < np.percentile(mat_values, percentile_graph_metric))[0]] = 0
 
-                    #### metrics
-                    degree = nx.degree_centrality(graph)
-                    # Formula: degree_centrality(v) = degree(v) / (n - 1), where n is the number of nodes
+                if mode == 'mask':
 
-                    betweenness = nx.betweenness_centrality(graph)
-                    # Formula: betweenness_centrality(v) = sum of (shortest paths through v / total shortest paths)
+                    mat_thresh = mat * mask_graph_metric
+                if mat_thresh.sum() == 0:
 
-                    closeness = nx.closeness_centrality(graph)
-                    # Formula: closeness_centrality(v) = 1 / (sum of shortest path distances from v to all other nodes)
-
-                    clustering_coeff = nx.clustering(graph)
-
-                    local_efficiency = nx.local_efficiency(graph)
-
-                    # Hubness (using HITS algorithm)
-                    hubs, authorities = nx.hits(graph)
-                    # Formula: HITS hub score: importance of a node as a hub, based on linking to authorities
-
-                    for chan in chan_list_eeg:
-
-                        try:
-                            _df = pd.DataFrame({'sujet' : [sujet], 'cond' : [cond], 'chan' : [chan], 'degree' : [degree[chan]], 'betweenness' : [betweenness[chan]], 
-                                    'closeness' : [closeness[chan]], 'hubs' : [hubs[chan]],
-                                    'clustering_coeff' : [clustering_coeff[chan]], 'local_efficiency' : [local_efficiency]})
-
-                            df_graph_metrics = pd.concat((df_graph_metrics, _df))
-                        except:
-                            pass
-
-            os.chdir(os.path.join(path_results, 'FC', fc_metric, 'graph'))
-
-            for metric in ['degree', 'betweenness', 'closeness', 'hubs', 'clustering_coeff', 'local_efficiency']:
-
-                g = sns.catplot(
-                    data=df_graph_metrics, kind="bar",
-                    x="chan", y=metric, hue="cond",
-                    alpha=.6, height=6)
-                # plt.show()
-
-                if stretch:
-                    if fc_metric == 'MI':
-                        plt.savefig(f"stretch_{fc_metric}_graph_{metric}.png")
-                    else:
-                        plt.savefig(f"stretch_{fc_metric}_{band}_graph_{metric}.png")
-                else:
-                    if fc_metric == 'MI':
-                        plt.savefig(f"nostretch_{fc_metric}_graph_{metric}.png")
-                    else:
-                        plt.savefig(f"nostretch_{fc_metric}_{band}_graph_{metric}.png")
-
-                plt.close('all')
-
-
-
-
-
-
-def plot_allsujet_FC_graph_stretch():
-
-    stretch=True
-
-    #fc_metric = 'MI'
-    for fc_metric in ['MI', 'ISPC', 'WPLI']:
-
-        print(f'{fc_metric} PLOT stretch:{stretch}', flush=True)
-
-        os.chdir(os.path.join(path_precompute, 'FC', fc_metric))
-        if stretch:
-            fc_allsujet = xr.open_dataarray(f'{fc_metric}_allsujet_stretch.nc')
-            clusters = xr.open_dataarray(f'{fc_metric}_allsujet_STATS_stretch.nc')
-        else:
-            fc_allsujet = xr.open_dataarray(f'{fc_metric}_allsujet.nc')
-            clusters = xr.open_dataarray(f'{fc_metric}_allsujet_STATS.nc')
-
-        pairs_to_compute = fc_allsujet['pair'].values
-        time_vec = fc_allsujet['time'].values
-        phase_list = ['whole', 'inspi', 'expi']
-        phase_vec = {'whole' : time_vec, 'inspi' : np.arange(stretch_point_ERP/2).astype('int'), 'expi' : (np.arange(stretch_point_ERP/2)+stretch_point_ERP/2).astype('int')}
-
-        #band_i, band = 0, freq_band_fc_list[0]
-        for band_i, band in enumerate(freq_band_fc_list):
-
-            #### generate matrix
-            fc_mat_cond = np.zeros((len(sujet_list), len(cond_list), len(phase_list), len(chan_list_eeg_short), len(chan_list_eeg_short)))
-
-            for sujet_i, sujet in enumerate(sujet_list):
-
-                for cond_i, cond in enumerate(cond_list):
-
-                    for phase_i, phase in enumerate(phase_list):
-                
-                        #pair_i, pair = 2, pairs_to_compute[2]
-                        for pair_i, pair in enumerate(pairs_to_compute):
-
-                            A, B = pair.split('-')
-                            A_i, B_i = np.where(chan_list_eeg_short == A)[0][0], np.where(chan_list_eeg_short == B)[0][0]
-
-                            if fc_metric == 'MI':
-                                fc_val = fc_allsujet.loc[sujet, pair, cond, phase_vec[phase]].values.mean()
-                            else:
-                                fc_val = fc_allsujet.loc[sujet, band, cond, pair, phase_vec[phase]].values.mean()
-
-                            fc_mat_cond[sujet_i, cond_i, phase_i, A_i, B_i], fc_mat_cond[sujet_i, cond_i, phase_i, B_i, A_i] = fc_val, fc_val
-
-            fc_mat_cond = xr.DataArray(data=fc_mat_cond, dims=['sujet', 'cond', 'phase', 'chanA', 'chanB'], coords=[sujet_list, cond_list, phase_list, chan_list_eeg_short, chan_list_eeg_short])
-
-            if debug:
-
-                plt.matshow(fc_mat_cond[0,:,:])
-                plt.colorbar(label='Connectivity Strength')
-                plt.xticks(ticks=np.arange(fc_mat_cond[0,:,:].shape[0]), labels=chan_list_eeg_short, rotation=90)
-                plt.yticks(ticks=np.arange(fc_mat_cond[0,:,:].shape[0]), labels=chan_list_eeg_short)
-                plt.xlabel("Electrodes")
-                plt.ylabel("Electrodes")
-                plt.title(f"{fc_metric} FC")
-                plt.show()
-
-            #mat = fc_mat_cond[0]
-            def thresh_fc_mat(mat, percentile_graph_metric=50):
-
-                mat_values = mat[np.triu_indices(mat.shape[0], k=1)]
-                
-                if debug:
-                    np.sum(mat_values > np.percentile(mat_values, 90))
-
-                    count, bin, fig = plt.hist(mat_values)
-                    plt.vlines(np.percentile(mat_values, 99), ymin=count.min(), ymax=count.max(), color='r')
-                    plt.vlines(np.percentile(mat_values, 95), ymin=count.min(), ymax=count.max(), color='r')
-                    plt.vlines(np.percentile(mat_values, 90), ymin=count.min(), ymax=count.max(), color='r')
-                    plt.vlines(np.percentile(mat_values, 75), ymin=count.min(), ymax=count.max(), color='r')
-                    plt.show()
-
-                #### apply thresh
-                for chan_i in range(mat.shape[0]):
-                    mat[chan_i,:][np.where(mat[chan_i,:] < np.percentile(mat_values, percentile_graph_metric))[0]] = 0
+                    return mat_thresh
 
                 #### verify that the graph is fully connected
                 chan_i_to_remove = []
-                for chan_i in range(mat.shape[0]):
-                    if np.sum(mat[chan_i,:]) == 0:
+                for chan_i in range(mat_thresh.shape[0]):
+                    if np.sum(mat_thresh[chan_i,:]) == 0:
                         chan_i_to_remove.append(chan_i)
 
-                mat_i_mask = [i for i in range(mat.shape[0]) if i not in chan_i_to_remove]
+                mat_thresh_i_mask = [i for i in range(mat_thresh.shape[0]) if i not in chan_i_to_remove]
 
                 if len(chan_i_to_remove) != 0:
                     for row in range(2):
                         if row == 0:
-                            mat = mat[mat_i_mask,:]
+                            mat_thresh = mat_thresh[mat_thresh_i_mask,:]
                         elif row == 1:
-                            mat = mat[:,mat_i_mask]
+                            mat_thresh = mat_thresh[:,mat_thresh_i_mask]
 
                 if debug:
-                    plt.matshow(mat)
+                    plt.imshow(mat_thresh)
                     plt.show()
 
-                return mat
+                return mat_thresh
             
             df_graph_metrics = pd.DataFrame()
 
-            for sujet in sujet_list:
+            for mode in ['percentile', 'mask']:
 
-                for cond in cond_list:
+                for sujet_i, sujet in enumerate(sujet_list):
 
-                    for phase in phase_list:
+                    for cond_i, cond in enumerate(cond_list):
 
-                        # Create a graph from the adjacency matrix
-                        mat = thresh_fc_mat(fc_mat_cond.loc[sujet,cond,phase,:,:].values)
-                        graph = nx.from_numpy_array(mat)
-                        nx.relabel_nodes(graph, mapping=dict(enumerate(chan_list_eeg_short)), copy=False)
+                        for phase_i, phase in enumerate(phase_list):
 
-                        if debug:
-                            # Plot the graph
-                            plt.figure(figsize=(10, 8))
-                            pos = nx.spring_layout(graph)  # Layout for visualization
-                            nx.draw(graph, pos, with_labels=True, node_color='skyblue', edge_color='gray', node_size=700, font_size=10)
-                            plt.title("Graph Visualization")
-                            plt.show()
+                            if fc_mat_mask_signi[phase_i,cond_i,:,:].sum() == 0:
 
-
-                        #### metrics
-                        degree = nx.degree_centrality(graph)
-                        # Formula: degree_centrality(v) = degree(v) / (n - 1), where n is the number of nodes
-
-                        betweenness = nx.betweenness_centrality(graph)
-                        # Formula: betweenness_centrality(v) = sum of (shortest paths through v / total shortest paths)
-
-                        closeness = nx.closeness_centrality(graph)
-                        # Formula: closeness_centrality(v) = 1 / (sum of shortest path distances from v to all other nodes)
-
-                        clustering_coeff = nx.clustering(graph)
-
-                        local_efficiency = nx.local_efficiency(graph)
-
-                        # Hubness (using HITS algorithm)
-                        hubs, authorities = nx.hits(graph)
-                        # Formula: HITS hub score: importance of a node as a hub, based on linking to authorities
-
-                        for chan in chan_list_eeg:
-
-                            try:
-                                _df = pd.DataFrame({'sujet' : [sujet], 'cond' : [cond], 'phase' : [phase], 'chan' : [chan], 'degree' : [degree[chan]], 'betweenness' : [betweenness[chan]], 
-                                        'closeness' : [closeness[chan]], 'hubs' : [hubs[chan]],
-                                        'clustering_coeff' : [clustering_coeff[chan]], 'local_efficiency' : [local_efficiency]})
+                                _df = pd.DataFrame({'sujet' : [sujet], 'cond' : [cond], 'phase' : [phase], 'mode' : [mode], 'chan' : [chan], 'degree' : [0], 'betweenness' : [0], 
+                                            'closeness' : [0], 'hubs' : [0],
+                                            'clustering_coeff' : [0], 'local_efficiency' : [0]})
 
                                 df_graph_metrics = pd.concat((df_graph_metrics, _df))
-                            except:
-                                pass
+
+                            else:
+
+                                # Create a graph from the adjacency matrix
+                                mat = thresh_fc_mat(fc_mat[phase_i,cond_i,:,:], mode=mode, percentile_graph_metric=50 ,mask_graph_metric=fc_mat_mask_signi[phase_i,cond_i,:,:])
+                                graph = nx.from_numpy_array(mat)
+                                nx.relabel_nodes(graph, mapping=dict(enumerate(chan_list_eeg_short)), copy=False)
+
+                                if debug:
+                                    # Plot the graph
+                                    plt.figure(figsize=(10, 8))
+                                    pos = nx.spring_layout(graph)  # Layout for visualization
+                                    nx.draw(graph, pos, with_labels=True, node_color='skyblue', edge_color='gray', node_size=700, font_size=10)
+                                    plt.title("Graph Visualization")
+                                    plt.show()
+
+                                #### metrics
+                                degree = nx.degree_centrality(graph)
+                                # Formula: degree_centrality(v) = degree(v) / (n - 1), where n is the number of nodes
+
+                                betweenness = nx.betweenness_centrality(graph)
+                                # Formula: betweenness_centrality(v) = sum of (shortest paths through v / total shortest paths)
+
+                                closeness = nx.closeness_centrality(graph)
+                                # Formula: closeness_centrality(v) = 1 / (sum of shortest path distances from v to all other nodes)
+
+                                clustering_coeff = nx.clustering(graph)
+
+                                local_efficiency = nx.local_efficiency(graph)
+
+                                # Hubness (using HITS algorithm)
+                                hubs, authorities = nx.hits(graph)
+                                # Formula: HITS hub score: importance of a node as a hub, based on linking to authorities
+
+                                for chan in chan_list_eeg_short:
+
+                                    try:
+                                        _df = pd.DataFrame({'sujet' : [sujet], 'cond' : [cond], 'phase' : [phase], 'mode' : [mode], 'chan' : [chan], 'degree' : [degree[chan]], 'betweenness' : [betweenness[chan]], 
+                                                'closeness' : [closeness[chan]], 'hubs' : [hubs[chan]],
+                                                'clustering_coeff' : [clustering_coeff[chan]], 'local_efficiency' : [local_efficiency]})
+
+                                        df_graph_metrics = pd.concat((df_graph_metrics, _df))
+
+                                    except:
+
+                                        _df = pd.DataFrame({'sujet' : [sujet], 'cond' : [cond], 'phase' : [phase], 'mode' : [mode], 'chan' : [chan], 'degree' : [0], 'betweenness' : [0], 
+                                                'closeness' : [0], 'hubs' : [0],
+                                                'clustering_coeff' : [0], 'local_efficiency' : [0]})
+
+                                        df_graph_metrics = pd.concat((df_graph_metrics, _df))
 
             os.chdir(os.path.join(path_results, 'FC', fc_metric, 'graph'))
 
             #metric = 'degree'
             for metric in ['degree', 'betweenness', 'closeness', 'hubs', 'clustering_coeff', 'local_efficiency']:
 
-                fig, axs = plt.subplots(ncols=len(phase_list), figsize=(15, 5), sharey=True)
+                for mode in ['mask', 'percentile']: 
 
-                for phase_i, phase in enumerate(phase_list):
+                    df_plot = df_graph_metrics.query(f"mode == '{mode}'")
 
-                    ax = axs[phase_i]
-                    sns.barplot(data=df_graph_metrics, x="chan", y=metric, hue="cond", alpha=0.6, ax=ax)
-                    ax.set_title(phase) 
-                    ax.set_xlabel("Channel")
-                    if phase_i == 0:
-                        ax.set_ylabel(metric)
-                    else:
-                        ax.set_ylabel("")
+                    fig, axs = plt.subplots(ncols=len(phase_list), figsize=(15, 5), sharey=True)
+
+                    for phase_i, phase in enumerate(phase_list):
+
+                        ax = axs[phase_i]
+                        sns.barplot(data=df_plot, x="chan", y=metric, hue="cond", alpha=0.6, ax=ax)
+                        ax.set_title(phase) 
+                        ax.set_xlabel("Channel")
+                        if phase_i == 0:
+                            ax.set_ylabel(metric)
+                        else:
+                            ax.set_ylabel("")
+
+                    if fc_metric == 'MI':
+                        plt.suptitle(f"{metric} {mode}")
+                    else :
+                        plt.suptitle(f"{metric} {band} {mode}")
+
+                    # plt.show()
 
                 if stretch:
                     if fc_metric == 'MI':
@@ -960,6 +849,184 @@ def plot_allsujet_FC_graph_stretch():
 
 
 
+# def plot_allsujet_FC_graph_nostretch():
+
+#     stretch=False
+
+#     #fc_metric = 'MI'
+#     for fc_metric in ['MI', 'ISPC', 'WPLI']:
+
+#         print(f'{fc_metric} PLOT stretch:{stretch}', flush=True)
+
+#         os.chdir(os.path.join(path_precompute, 'FC', fc_metric))
+#         if stretch:
+#             fc_allsujet = xr.open_dataarray(f'{fc_metric}_allsujet_stretch.nc')
+#             clusters = xr.open_dataarray(f'{fc_metric}_allsujet_STATS_state_stretch.nc')
+#             clusters_time = xr.open_dataarray(f'{fc_metric}_allsujet_STATS_time_stretch.nc')
+#         else:
+#             fc_allsujet = xr.open_dataarray(f'{fc_metric}_allsujet.nc')
+#             clusters = xr.open_dataarray(f'{fc_metric}_allsujet_STATS_state.nc')
+#             clusters_time = xr.open_dataarray(f'{fc_metric}_allsujet_STATS_time_stretch.nc')
+
+#         pairs_to_compute = fc_allsujet['pair'].values
+#         time_vec = fc_allsujet['time'].values
+#         phase_list = ['whole', 'inspi', 'expi']
+#         phase_vec = {'whole' : time_vec, 'inspi' : np.arange(stretch_point_ERP/2).astype('int'), 'expi' : (np.arange(stretch_point_ERP/2)+stretch_point_ERP/2).astype('int')}
+
+#         #band_i, band = 0, freq_band_fc_list
+#         for band_i, band in enumerate(freq_band_fc_list):
+
+#             #### stretch compute
+#             if stretch:
+
+#                 fc_mat = np.zeros((len(phase_list), len(chan_list_eeg_short), len(chan_list_eeg_short)))
+#                 fc_mat_mask_signi = np.zeros((len(phase_list), len(chan_list_eeg_short), len(chan_list_eeg_short)))
+#                 fc_mat_only_signi = np.zeros((len(phase_list), len(chan_list_eeg_short), len(chan_list_eeg_short)))
+
+#                 #phase_i, phase = 0, 'whole'
+#                 for phase_i, phase in enumerate(phase_list):
+
+#                     if fc_metric == 'MI':
+#                         fc_mat_mask_signi[phase_i,:,:] = from_pairs_2mat(clusters.loc[phase,:], pairs_to_compute)
+#                     else:
+#                         fc_mat_mask_signi[phase_i,:,:] = from_pairs_2mat(clusters.loc[phase,band,:], pairs_to_compute)
+
+#                     #pair_i, pair = 2, pairs_to_compute[2]
+#                     for pair_i, pair in enumerate(pairs_to_compute):
+
+#                         A, B = pair.split('-')
+#                         A_i, B_i = np.where(chan_list_eeg_short == A)[0][0], np.where(chan_list_eeg_short == B)[0][0]
+
+#                         if fc_metric == 'MI':
+#                             data_chunk_diff = fc_allsujet.loc[:, pair, 'CHARGE', phase_vec[phase]].mean('sujet').values - fc_allsujet.loc[:, pair, 'VS', phase_vec[phase]].mean('sujet').values
+                            
+#                         else:
+#                             data_chunk_diff = fc_allsujet.loc[:, band, 'CHARGE', pair, phase_vec[phase]].mean('sujet').values - fc_allsujet.loc[:, band, 'VS', pair, phase_vec[phase]].mean('sujet').values
+
+#                         fc_val = data_chunk_diff.mean()
+
+#                         fc_mat[phase_i, A_i, B_i], fc_mat[phase_i, B_i, A_i] = fc_val, fc_val
+
+#                         if fc_metric == 'MI' and clusters.loc[phase,pair].values.astype('bool'):
+#                             fc_mat_only_signi[phase_i, A_i, B_i], fc_mat_only_signi[phase_i, B_i, A_i] = fc_val, fc_val
+#                         elif fc_metric != 'MI' and clusters.loc[phase,band,pair].values.astype('bool'):
+#                             fc_mat_only_signi[phase_i, A_i, B_i], fc_mat_only_signi[phase_i, B_i, A_i] = fc_val, fc_val
+
+#             #mat = fc_mat_cond[0]
+#             def thresh_fc_mat(mat, percentile_graph_metric=50):
+
+#                 mat_values = mat[np.triu_indices(mat.shape[0], k=1)]
+                
+#                 if debug:
+#                     np.sum(mat_values > np.percentile(mat_values, 90))
+
+#                     count, bin, fig = plt.hist(mat_values)
+#                     plt.vlines(np.percentile(mat_values, 99), ymin=count.min(), ymax=count.max(), color='r')
+#                     plt.vlines(np.percentile(mat_values, 95), ymin=count.min(), ymax=count.max(), color='r')
+#                     plt.vlines(np.percentile(mat_values, 90), ymin=count.min(), ymax=count.max(), color='r')
+#                     plt.vlines(np.percentile(mat_values, 75), ymin=count.min(), ymax=count.max(), color='r')
+#                     plt.show()
+
+#                 #### apply thresh
+#                 for chan_i in range(mat.shape[0]):
+#                     mat[chan_i,:][np.where(mat[chan_i,:] < np.percentile(mat_values, percentile_graph_metric))[0]] = 0
+
+#                 #### verify that the graph is fully connected
+#                 chan_i_to_remove = []
+#                 for chan_i in range(mat.shape[0]):
+#                     if np.sum(mat[chan_i,:]) == 0:
+#                         chan_i_to_remove.append(chan_i)
+
+#                 mat_i_mask = [i for i in range(mat.shape[0]) if i not in chan_i_to_remove]
+
+#                 if len(chan_i_to_remove) != 0:
+#                     for row in range(2):
+#                         if row == 0:
+#                             mat = mat[mat_i_mask,:]
+#                         elif row == 1:
+#                             mat = mat[:,mat_i_mask]
+
+#                 if debug:
+#                     plt.matshow(mat)
+#                     plt.show()
+
+#                 return mat
+            
+#             df_graph_metrics = pd.DataFrame()
+
+#             for sujet in sujet_list:
+
+#                 for cond in cond_list:
+
+#                     # Create a graph from the adjacency matrix
+#                     mat = thresh_fc_mat(fc_mat_cond.loc[sujet,cond,:,:].values)
+#                     graph = nx.from_numpy_array(mat)
+#                     nx.relabel_nodes(graph, mapping=dict(enumerate(chan_list_eeg_short)), copy=False)
+
+#                     if debug:
+#                         # Plot the graph
+#                         plt.figure(figsize=(10, 8))
+#                         pos = nx.spring_layout(graph)  # Layout for visualization
+#                         nx.draw(graph, pos, with_labels=True, node_color='skyblue', edge_color='gray', node_size=700, font_size=10)
+#                         plt.title("Graph Visualization")
+#                         plt.show()
+
+
+#                     #### metrics
+#                     degree = nx.degree_centrality(graph)
+#                     # Formula: degree_centrality(v) = degree(v) / (n - 1), where n is the number of nodes
+
+#                     betweenness = nx.betweenness_centrality(graph)
+#                     # Formula: betweenness_centrality(v) = sum of (shortest paths through v / total shortest paths)
+
+#                     closeness = nx.closeness_centrality(graph)
+#                     # Formula: closeness_centrality(v) = 1 / (sum of shortest path distances from v to all other nodes)
+
+#                     clustering_coeff = nx.clustering(graph)
+
+#                     local_efficiency = nx.local_efficiency(graph)
+
+#                     # Hubness (using HITS algorithm)
+#                     hubs, authorities = nx.hits(graph)
+#                     # Formula: HITS hub score: importance of a node as a hub, based on linking to authorities
+
+#                     for chan in chan_list_eeg:
+
+#                         try:
+#                             _df = pd.DataFrame({'sujet' : [sujet], 'cond' : [cond], 'chan' : [chan], 'degree' : [degree[chan]], 'betweenness' : [betweenness[chan]], 
+#                                     'closeness' : [closeness[chan]], 'hubs' : [hubs[chan]],
+#                                     'clustering_coeff' : [clustering_coeff[chan]], 'local_efficiency' : [local_efficiency]})
+
+#                             df_graph_metrics = pd.concat((df_graph_metrics, _df))
+#                         except:
+#                             pass
+
+#             os.chdir(os.path.join(path_results, 'FC', fc_metric, 'graph'))
+
+#             for metric in ['degree', 'betweenness', 'closeness', 'hubs', 'clustering_coeff', 'local_efficiency']:
+
+#                 g = sns.catplot(
+#                     data=df_graph_metrics, kind="bar",
+#                     x="chan", y=metric, hue="cond",
+#                     alpha=.6, height=6)
+#                 # plt.show()
+
+#                 if stretch:
+#                     if fc_metric == 'MI':
+#                         plt.savefig(f"stretch_{fc_metric}_graph_{metric}.png")
+#                     else:
+#                         plt.savefig(f"stretch_{fc_metric}_{band}_graph_{metric}.png")
+#                 else:
+#                     if fc_metric == 'MI':
+#                         plt.savefig(f"nostretch_{fc_metric}_graph_{metric}.png")
+#                     else:
+#                         plt.savefig(f"nostretch_{fc_metric}_{band}_graph_{metric}.png")
+
+#                 plt.close('all')
+
+
+
+
 
 
 
@@ -972,12 +1039,13 @@ def plot_allsujet_FC_graph_stretch():
 ######## EXECUTE ########
 ################################
 
+
 if __name__ == '__main__':
 
     plot_allsujet_FC_chunk()
     plot_allsujet_FC_mat()
-    plot_allsujet_FC_graph_nostretch()
     plot_allsujet_FC_graph_stretch()
+    # plot_allsujet_FC_graph_nostretch()
 
 
 

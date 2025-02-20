@@ -16,6 +16,7 @@ import paramiko
 import getpass
 import cv2
 import statsmodels
+import seaborn as sns
 #install netcdf4
 
 import neurokit2 as nk
@@ -1607,7 +1608,7 @@ def nk_analysis(ecg_i, srate):
 ########################################
 
 # # data_baseline, data_cond, n_surr = data_baseline, data_cond, n_surr_fc
-# def get_permutation_wilcoxon_2groups_debug(data_baseline, data_cond, n_surr):
+# def get_permutation_wilcoxon_2groups(data_baseline, data_cond, n_surr):
 
 #     if debug:
 #         plt.hist(data_baseline, bins=50, alpha=0.5, label='baseline')
@@ -1660,7 +1661,7 @@ def nk_analysis(ecg_i, srate):
 
 
 # data_baseline, data_cond, n_surr = data_baseline, data_cond, n_surr_fc
-def get_permutation_wilcoxon_2groups(data_baseline, data_cond, n_surr, mode_grouped='mean', mode_generate_surr='minmax'):
+def get_permutation_2groups(data_baseline, data_cond, n_surr, mode_grouped='mean', mode_generate_surr='minmax'):
 
     if debug:
         plt.hist(data_baseline, bins=50, alpha=0.5, label='baseline')
@@ -1704,8 +1705,8 @@ def get_permutation_wilcoxon_2groups(data_baseline, data_cond, n_surr, mode_grou
         count, _, _ = plt.hist(surr_distrib[:,1], bins=50, color='k', alpha=0.5)
         plt.vlines([obs_distrib], ymin=0, ymax=count.max(), label='obs', colors='g')
 
-        plt.vlines([np.percentile(surr_distrib[:,0], 1)], ymin=0, ymax=count.max(), label='perc_1_99', colors='r', linestyles='--')
-        plt.vlines([np.percentile(surr_distrib[:,1], 99)], ymin=0, ymax=count.max(), colors='r', linestyles='--')
+        plt.vlines([np.percentile(surr_distrib[:,0], 0.5)], ymin=0, ymax=count.max(), label='perc_05_995', colors='r', linestyles='--')
+        plt.vlines([np.percentile(surr_distrib[:,1], 99.5)], ymin=0, ymax=count.max(), colors='r', linestyles='--')
         plt.vlines([np.percentile(surr_distrib[:,0], 2.5)], ymin=0, ymax=count.max(), label='perc_025_975', colors='r', linestyles='-.')
         plt.vlines([np.percentile(surr_distrib[:,1], 97.5)], ymin=0, ymax=count.max(), colors='r', linestyles='-.')
         plt.legend()
@@ -1713,7 +1714,7 @@ def get_permutation_wilcoxon_2groups(data_baseline, data_cond, n_surr, mode_grou
 
     #### thresh
     # surr_dw, surr_up = np.percentile(surr_distrib[:,0], 2.5, axis=0), np.percentile(surr_distrib[:,1], 97.5, axis=0)
-    surr_dw, surr_up = np.percentile(surr_distrib[:,0], 1, axis=0), np.percentile(surr_distrib[:,1], 99, axis=0)
+    surr_dw, surr_up = np.percentile(surr_distrib[:,0], 0.5, axis=0), np.percentile(surr_distrib[:,1], 99.5, axis=0)
 
     if obs_distrib < surr_dw or obs_distrib > surr_up:
         stats_res = True
@@ -1852,7 +1853,7 @@ def get_permutation_wilcoxon_2groups(data_baseline, data_cond, n_surr, mode_grou
 
 
 # data_baseline, data_cond, n_surr = data_baseline, data_cond, n_surr_fc
-def get_permutation_cluster_1d(data_baseline, data_cond, n_surr, mode_grouped='mean', mode_generate_surr='minmax', mode_select_thresh='mean', size_thresh_alpha=0.05):
+def get_permutation_cluster_1d(data_baseline, data_cond, n_surr, mode_grouped='mean', mode_generate_surr='minmax', mode_select_thresh='mean', size_thresh_alpha=0.01):
 
     n_trials_baselines = data_baseline.shape[0]
     len_sig = data_baseline.shape[-1]
@@ -2014,7 +2015,7 @@ def get_permutation_cluster_1d(data_baseline, data_cond, n_surr, mode_grouped='m
 
 
 # data_baseline, data_cond, n_surr = tf_stretch_baseline_allsujet, tf_stretch_cond_allsujet, 100
-def get_permutation_cluster_2d(data_baseline, data_cond, n_surr):
+def get_permutation_cluster_2d(data_baseline, data_cond, n_surr, mode_grouped='mean', mode_generate_surr='minmax', mode_select_thresh='mean', size_thresh_alpha=0.05):
 
     """
     For data shape (trial,frequences,time)
@@ -2024,106 +2025,136 @@ def get_permutation_cluster_2d(data_baseline, data_cond, n_surr):
     #### define ncycle
     n_trial_baselines = data_baseline.shape[0]
     n_trial_cond = data_cond.shape[0]
-    n_trial_selection = np.array([n_trial_baselines, n_trial_cond]).min()
+    n_trial_tot = n_trial_baselines + n_trial_cond
+    len_sig = data_baseline.shape[-1]
 
-    pixel_based_distrib = np.zeros((data_baseline.shape[1], 2))
-    data_shuffle = np.zeros((n_trial_selection, data_baseline.shape[1], data_baseline.shape[-1]))
+    data_shuffle = np.concatenate((data_baseline, data_cond), axis=0)
 
-    #### space allocation
-    _pixel_based_distrib = np.zeros((nfrex, n_surr, 2), dtype=np.float32)
+    if mode_grouped == 'mean':
+        data_baseline_grouped = np.mean(data_baseline, axis=0)
+        data_cond_grouped = np.mean(data_cond, axis=0)
+    elif mode_grouped == 'median':
+        data_baseline_grouped = np.median(data_baseline, axis=0)
+        data_cond_grouped = np.median(data_cond, axis=0)
 
-    #surrogates_i = 0
-    for surrogates_i in range(n_surr):
-
-        print_advancement(surrogates_i, n_surr, steps=[25, 50, 75])
-
-        #### random selection
-        draw_indicator = np.random.randint(low=0, high=2, size=n_trial_selection)
-        sel_baseline = np.random.choice(n_trial_baselines, size=(draw_indicator == 0).sum(), replace=False)
-        sel_cond = np.random.choice(n_trial_cond, size=(draw_indicator == 1).sum(), replace=False)
-
-        #### extract max min
-        data_shuffle[:len(sel_baseline),:,:] = data_baseline[sel_baseline, :, :]
-        data_shuffle[len(sel_baseline):,:,:] = data_cond[sel_cond, :, :]
-
-        _min, _max = np.median(data_shuffle, axis=0).min(axis=1), np.median(data_shuffle, axis=0).max(axis=1)
-        
-        _pixel_based_distrib[:, surrogates_i, 0] = _min
-        _pixel_based_distrib[:, surrogates_i, 1] = _max
-
-    pixel_based_distrib[:,0], pixel_based_distrib[:,1] = np.median(_pixel_based_distrib[:,:,0], axis=1), np.median(_pixel_based_distrib[:,:,1], axis=1)
-    # min, max = np.percentile(pixel_based_distrib_i[:,:,0], tf_percentile_sel_stats_dw, axis=1), np.percentile(pixel_based_distrib_i[:,:,1], tf_percentile_sel_stats_up, axis=1) 
+    obs_distrib = data_cond_grouped - data_baseline_grouped
 
     if debug:
 
-        data_plot = np.median(data_cond, axis=0)
-
-        time = np.arange(data_plot.shape[-1])
-
-        plt.pcolormesh(time, frex, data_plot, shading='gouraud', cmap='seismic')
-        plt.yscale('log')
+        plt.pcolormesh(obs_distrib)
         plt.show()
 
-        #wavelet_i = 0
-        for wavelet_i in range(20):
-            count, _, _ = plt.hist(data_plot[wavelet_i, :], bins=500)
-            plt.vlines([pixel_based_distrib[wavelet_i], pixel_based_distrib[wavelet_i]], ymin=0, ymax=count.max(), color='r')
-            plt.show()
+    #### space allocation
+    surr_distrib = np.zeros((nfrex, n_surr, 2), dtype=np.float32)
 
-    #### thresh data
-    data_thresh_dict = {}
+    #surr_i = 0
+    for surr_i in range(n_surr):
 
-    for type in ['baseline', 'cond']:
+        print_advancement(surr_i, n_surr, steps=[25, 50, 75])
 
-        if type == 'baseline':
-            data_median = np.median(data_baseline, axis=0)
-        elif type == 'cond':
-            data_median = np.median(data_cond, axis=0)
-        
-        data_thresh = np.zeros(data_cond[0,:,:].shape)
+        #### shuffle
+        random_sel = np.random.choice(n_trial_tot, size=n_trial_tot, replace=False)
+        data_shuffle_baseline = data_shuffle[random_sel[:n_trial_baselines]]
+        data_shuffle_cond = data_shuffle[random_sel[n_trial_baselines:]]
 
-        #wavelet_i = 0
-        for wavelet_i in range(data_baseline.shape[1]):
-
-            mask = np.logical_or(data_median[wavelet_i, :] < pixel_based_distrib[wavelet_i, 0], data_median[wavelet_i, :] > pixel_based_distrib[wavelet_i, 1])
-            data_thresh[wavelet_i, :] = mask*1
+        if mode_grouped == 'mean':
+            diff_shuffle = np.mean(data_shuffle_cond, axis=0) - np.mean(data_shuffle_baseline, axis=0)
+        elif mode_grouped == 'median':
+            diff_shuffle = np.median(data_shuffle_cond, axis=0) - np.median(data_shuffle_baseline, axis=0)
 
         if debug:
-
-            plt.pcolormesh(data_thresh)
+            plt.pcolormesh(diff_shuffle)
             plt.show()
 
+        #### generate distrib
+        if mode_generate_surr == 'minmax':
+            surr_distrib[:, surr_i, 0], surr_distrib[:, surr_i, 1] = diff_shuffle.min(axis=1), diff_shuffle.max(axis=1)
+        elif mode_generate_surr == 'percentile':
+            surr_distrib[:, surr_i, 0], surr_distrib[:, surr_i, 1] = np.percentile(diff_shuffle, 1, axis=1), np.percentile(diff_shuffle, 99, axis=1)    
+
+    if mode_select_thresh == 'percentile':
+        # surr_dw, surr_up = np.percentile(surr_distrib[:,:,0], 2.5, axis=1), np.percentile(surr_distrib[:,:,1], 97.5, axis=1)
+        surr_dw, surr_up = np.percentile(surr_distrib[:,:,0], 1, axis=1), np.percentile(surr_distrib[:,:,1], 99, axis=1)
+    elif mode_select_thresh == 'mean':
+        surr_dw, surr_up = np.mean(surr_distrib[:,:,0], axis=1), np.median(surr_distrib[:,:,1], axis=1)
+    elif mode_select_thresh == 'median':
+        surr_dw, surr_up = np.median(surr_distrib[:,:,0], axis=1), np.median(surr_distrib[:,:,1], axis=1)
+
+    if debug:
+
+        bins=50
+        counts = np.zeros((obs_distrib.shape[0], bins))
+        values = np.zeros((obs_distrib.shape[0], bins+1))
+        for row_i in range(obs_distrib.shape[0]):
+            counts[row_i,:], values[row_i,:], _ = plt.hist(obs_distrib[row_i,:], bins=bins)
+        plt.close('all')
+
+        fig, ax = plt.subplots(figsize=(8, 6))
+
+        X, Y = np.meshgrid(values[0, :-1], np.arange(obs_distrib.shape[0]))  # Mesh grid for pcolormesh
+
+        c = ax.pcolormesh(X, Y, counts, cmap='viridis', shading='auto')
+
+        ax.plot(surr_dw, np.arange(150), color='red', linewidth=2, label="surr_dw")
+        ax.plot(surr_up, np.arange(150), color='blue', linewidth=2, label="surr_up")
+
+        ax.set_xlabel("Value Distribution")
+        ax.set_ylabel("150 Points")
+        ax.set_title("Distribution of Values with Vector Overlays")
+        ax.legend()
+
+        fig.colorbar(c, ax=ax, label="Density")
+
+        plt.show()
+
+    #### thresh data
+    mask = np.zeros((obs_distrib.shape), dtype='bool')
+    for row_i in range(obs_distrib.shape[0]):
+        mask[row_i,:] = (obs_distrib[row_i,:] < surr_dw[row_i]) | (obs_distrib[row_i,:] > surr_up[row_i])
+
+    if debug:
+
+        plt.pcolormesh(mask)
+        plt.show()
+
+    if mask.sum() != 0:
+    
         #### thresh cluster
-        data_thresh = data_thresh.astype('uint8')
-        nb_blobs, im_with_separated_blobs, stats, _ = cv2.connectedComponentsWithStats(data_thresh)
+        mask_thresh = mask.astype('uint8')
+        nb_blobs, im_with_separated_blobs, stats, _ = cv2.connectedComponentsWithStats(mask_thresh)
         #### nb_blobs, im_with_separated_blobs, stats = nb clusters, clusters image with labeled clusters, info on clusters
         sizes = stats[1:, -1]
         nb_blobs -= 1
-        min_size = np.percentile(sizes,tf_stats_percentile_cluster_size_thresh)  
+        # min_size = np.percentile(sizes,size_thresh)  
+        min_size = len_sig*size_thresh_alpha  
 
         if debug:
 
-            count, _, _ = plt.hist(sizes, bins=100)
-            plt.vlines(np.percentile(sizes,95), ymin=0, ymax=count.max(), colors='r')
+            count, _, _ = plt.hist(sizes, bins=50, cumulative=True)
+            plt.vlines(min_size, ymin=0, ymax=count.max(), colors='r')
             plt.show()
 
-        data_thresh = np.zeros_like(im_with_separated_blobs)
+        mask_thresh = np.zeros_like(im_with_separated_blobs)
         for blob in range(nb_blobs):
             if sizes[blob] >= min_size:
-                data_thresh[im_with_separated_blobs == blob + 1] = 1
+                mask_thresh[im_with_separated_blobs == blob + 1] = 1
 
         if debug:
-        
-            time = np.arange(data_median.shape[-1])
 
-            plt.pcolormesh(time, frex, data_median, shading='gouraud', cmap='seismic')
-            plt.contour(time, frex, data_thresh, levels=0, colors='g')
-            plt.yscale('log')
+            fig, ax = plt.subplots()
+
+            time_vec = np.arange(len_sig)
+
+            ax.pcolormesh(obs_distrib, shading='gouraud', cmap=plt.get_cmap('seismic'))
+            ax.contour(mask_thresh, levels=0, colors='g')
+
             plt.show()
 
-        data_thresh_dict[type] = data_thresh
+    else:
 
-    return data_thresh_dict['baseline'], data_thresh_dict['cond']
+        mask_thresh = mask
+
+    return mask_thresh
 
 
 

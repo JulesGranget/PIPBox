@@ -60,8 +60,7 @@ def precompute_tf_STATS_allsujet(chan):
     ######## COMPUTE SURROGATES & STATS ########
 
     print('COMPUTE SURROGATES', flush=True)
-    tf_stats = {}
-    tf_stats['VS'], tf_stats['CHARGE'] = get_permutation_cluster_2d(tf_stretch_baseline_allsujet, tf_stretch_cond_allsujet, n_surrogates_tf)
+    tf_stats = get_permutation_cluster_2d(tf_stretch_baseline_allsujet, tf_stretch_cond_allsujet, n_surrogates_tf)
     
     ######## SAVE ########
 
@@ -69,21 +68,10 @@ def precompute_tf_STATS_allsujet(chan):
 
     os.chdir(os.path.join(path_precompute, 'TF', 'STRETCH_STATS'))
     
-    for cond in cond_list: 
-        np.save(f'{chan}_{cond}_allsujet_tf_STATS.npy', tf_stats[cond])
+    np.save(f'{chan}_allsujet_tf_STATS.npy', tf_stats)
 
     
 
-
-
-
-
-                    
-                
-            
-                
-
-    
 
 
 

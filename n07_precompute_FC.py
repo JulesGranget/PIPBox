@@ -162,7 +162,6 @@ def get_MI_allsujet(stretch):
             print_advancement(pair_i, len(pairs_to_compute), [25,50,75])
 
             A, B = pair.split('-')[0], pair.split('-')[1]
-            chan_sel = {A : chan_list_eeg_short.tolist().index(A), B : chan_list_eeg_short.tolist().index(B)}
                     
             #cond_i, cond = 0, 'VS'
             for cond_i, cond in enumerate(cond_sel):
@@ -362,11 +361,31 @@ def compilation_ispc_wpli(stretch):
             as1 = convolutions[pair_A_i,:,:]
             as2 = convolutions[pair_B_i,:,:]
 
+            cross_corr = np.zeros((as1.shape), dtype='complex128')
+
+            for fi in range(wavelets.shape[0]):
+
+                cross_corr[fi,:] = scipy.signal.correlate(as1[fi,:], as2[fi,:], mode='same', method='fft') 
+
             if stretch:
 
-                #### stretch data
+                #### stretch data conv
                 as1_chunk = stretch_data_tf(respfeatures_allcond[cond], stretch_point_ERP, as1, srate)[0]
                 as2_chunk = stretch_data_tf(respfeatures_allcond[cond], stretch_point_ERP, as2, srate)[0]
+
+                #### stretch data cross corr
+                as_chunk_crosscorr = stretch_data_tf(respfeatures_allcond[cond], stretch_point_ERP, cross_corr, srate)[0]
+
+                if debug:
+
+                    plt.pcolormesh(np.real(as_chunk_crosscorr.mean(axis=0)))
+                    plt.show()
+
+                    plt.plot(np.real(as_chunk_crosscorr.mean(axis=0).mean(axis=0)), label='crosscorr')
+                    plt.plot(np.real(as1_chunk.mean(axis=0).mean(axis=0)))
+                    plt.plot(np.real(as2_chunk.mean(axis=0).mean(axis=0)))
+                    plt.legend()
+                    plt.show()
 
             else:
 
@@ -374,6 +393,19 @@ def compilation_ispc_wpli(stretch):
 
                 as1_chunk = np.zeros((inspi_starts.size, wavelets.shape[0], time_vec.size), dtype=np.complex128)
                 as2_chunk = np.zeros((inspi_starts.size, wavelets.shape[0], time_vec.size), dtype=np.complex128)
+
+                as_chunk_crosscorr = np.zeros((inspi_starts.size, wavelets.shape[0], time_vec.size), dtype=np.complex128)
+
+                if debug:
+
+                    plt.pcolormesh(np.real(as_chunk_crosscorr.mean(axis=0)))
+                    plt.show()
+
+                    plt.plot(np.real(as_chunk_crosscorr.mean(axis=0).mean(axis=0)), label='crosscorr')
+                    plt.plot(np.real(as1_chunk.mean(axis=0).mean(axis=0)))
+                    plt.plot(np.real(as2_chunk.mean(axis=0).mean(axis=0)))
+                    plt.legend()
+                    plt.show()
 
                 remove_i_list = []
 
@@ -389,9 +421,13 @@ def compilation_ispc_wpli(stretch):
                     as1_chunk[start_i,:,:] = as1[:,t_start:t_stop]
                     as2_chunk[start_i,:,:] = as2[:,t_start:t_stop]
 
+                    as_chunk_crosscorr[start_i,:,:] = cross_corr[:,t_start:t_stop]
+
                 if len(remove_i_list) != 0:
                     as1_chunk = as1_chunk[[i for i in range(inspi_starts.size) if i not in remove_i_list]]
                     as2_chunk = as2_chunk[[i for i in range(inspi_starts.size) if i not in remove_i_list]]
+
+                    as_chunk_crosscorr = as_chunk_crosscorr[[i for i in range(inspi_starts.size) if i not in remove_i_list]]
 
             ##### collect "eulerized" phase angle differences
             cdd = np.exp(1j*(np.angle(as1_chunk)-np.angle(as2_chunk)))
@@ -402,7 +438,7 @@ def compilation_ispc_wpli(stretch):
             xr_data_ispc[sujet_list.index(sujet),freq_band_fc_list.index(band),cond_list.index(cond),pair_to_compute_i,:] = np.mean(ispc_freq, axis=0)
 
             # pli_dfc_i[slwin_values_i] = np.abs(np.mean(np.sign(np.imag(cdd))))
-            wpli_freq = np.abs( np.mean( np.imag(cdd), axis=1 ) ) / np.mean( np.abs( np.imag(cdd) ), axis=1 )
+            wpli_freq = np.abs( np.mean( np.imag(as_chunk_crosscorr), axis=0 ) ) / np.mean( np.abs( np.imag(as_chunk_crosscorr) ), axis=0 )
             # res_fc_phase[1, pair_to_compute_i, :] = np.mean(wpli_freq, axis=0)
             xr_data_wpli[sujet_list.index(sujet),freq_band_fc_list.index(band),cond_list.index(cond),pair_to_compute_i,:] = np.mean(wpli_freq, axis=0)
 
@@ -412,6 +448,11 @@ def compilation_ispc_wpli(stretch):
                 plt.show()
 
                 plt.pcolormesh(wpli_freq)
+                plt.show()
+
+                plt.plot(np.mean(wpli_freq, axis=0), label='wpli')
+                plt.plot(np.mean(ispc_freq, axis=0), label='ispc')
+                plt.legend()
                 plt.show()
 
         # joblib.Parallel(n_jobs = n_core, prefer = 'processes')(joblib.delayed(compute_ispc_wpli_dfc)(pair_to_compute_i, pair_to_compute) for pair_to_compute_i, pair_to_compute in enumerate(pairs_to_compute))
