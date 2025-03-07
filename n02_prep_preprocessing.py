@@ -1052,7 +1052,63 @@ if __name__== '__main__':
 
 
 
+    ################################
+    ######## APPLY CSD ########
+    ################################
 
+    #sujet = sujet_list[0]
+    for sujet in sujet_list:
+
+        #cond = cond_list[0]
+        for cond in cond_list:
+
+            os.chdir(path_prep)
+            raw = mne.io.read_raw_fif(f'{sujet}_{cond}.fif', preload=True, verbose='critical')
+            raw_csd = mne.preprocessing.compute_current_source_density(raw)
+
+            raw_csd.save(f'{sujet}_{cond}_CSD.fif')
+
+            if debug:
+
+                chan_i = 2
+
+                plt.plot(scipy.stats.zscore(raw.get_data()[chan_i,:]), label='raw')
+                plt.plot(scipy.stats.zscore(raw_csd.get_data()[chan_i,:]), label='csd')
+                plt.legend()
+                plt.show()
+
+
+    ########################################
+    ######## COMPUTE NORM PARAMS ########
+    ########################################
+
+    xr_data = np.zeros((len(sujet_list), 2, 4, len(chan_list)))
+    params_list = ['mean', 'sd', 'median', 'mad']
+
+    #sujet = sujet_list[0]
+    for sujet_i, sujet in enumerate(sujet_list):
+
+        #cond = cond_list[0]
+        for cond_i, cond in enumerate(cond_list):
+
+            if cond_i == 0:
+                data = load_data_sujet(sujet, cond)
+                data_CSD = load_data_sujet_CSD(sujet, cond)
+            else:
+                data = np.concatenate((data, load_data_sujet(sujet, cond)), axis=1)
+                data_CSD = np.concatenate((data, load_data_sujet_CSD(sujet, cond)), axis=1)
+
+        xr_data[sujet_i, 0, 0, :], xr_data[sujet_i, 0, 1, :] = data.mean(axis=1), data.std(axis=1) 
+        xr_data[sujet_i, 0, 2, :], xr_data[sujet_i, 0, 3, :] = np.median(data, axis=1), scipy.stats.median_abs_deviation(data, axis=1)
+
+        xr_data[sujet_i, 1, 0, :], xr_data[sujet_i, 1, 1, :] = data_CSD.mean(axis=1), data_CSD.std(axis=1) 
+        xr_data[sujet_i, 1, 2, :], xr_data[sujet_i, 1, 3, :] = np.median(data_CSD, axis=1), scipy.stats.median_abs_deviation(data_CSD, axis=1)
+
+    xr_dict = {'sujet' : sujet_list, 'data_type' : ['standard', 'CSD'], 'norm_param' : params_list, 'chan' : chan_list}
+    xr_param_norm = xr.DataArray(data=xr_data, dims=xr_dict.keys(), coords=xr_dict)
+
+    os.chdir(path_prep)
+    xr_param_norm.to_netcdf('norm_params.nc')
 
     ########################################
     ######## AGGREGATES PREPROC ########

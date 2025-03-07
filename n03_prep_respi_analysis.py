@@ -656,6 +656,20 @@ if __name__ == '__main__':
 
     df_count_cycle = df_count_cycle.drop(columns='Unnamed: 0')
 
+    ncount_selsujet = []
+
+    for ncount in np.arange(40, 300, 1):
+        df_sel_ncycle = df_count_cycle.query(f"count >= {ncount}")
+        nsujet = [sujet for sujet in sujet_list if (df_sel_ncycle['sujet'].values == sujet).sum() == 2] 
+        ncount_selsujet.append(len(nsujet))
+
+    plt.plot(np.arange(40, 300, 1), ncount_selsujet)
+    plt.show()
+
+    df_sel_ncycle = df_count_cycle.query(f"count >= 100")
+    sujet_list_fc = [sujet for sujet in sujet_list if (df_sel_ncycle['sujet'].values == sujet).sum() == 2]
+    nsujet = len(sujet_list_fc)
+
     plt.hist(df_count_cycle.query(f"cond == 'VS'")['count'].values, bins=20, label='VS', alpha=0.7)
     plt.hist(df_count_cycle.query(f"cond == 'CHARGE'")['count'].values, bins=20, label='CHARGE', alpha=0.7)
     plt.xlabel('count')

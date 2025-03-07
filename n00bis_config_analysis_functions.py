@@ -347,17 +347,14 @@ def sync_folders__push_to_crnldata(clusterexecution=True):
 ######## SLURM EXECUTE ########
 ################################
 
-
-#name_script, name_function, params = 'n06_precompute_TF_STATS', 'precompute_tf_STATS_allsujet', [chan]
-def execute_function_in_slurm_bash(name_script, name_function, params, n_core=15, mem='15G'):
-
-    script_path = os.getcwd()
-    
+#params_one_script = [sujet]
+def write_script_slurm(name_script, name_function, params_one_script, n_core, mem):
+        
     python = sys.executable
 
     #### params to print in script
     params_str = ""
-    for i, params_i in enumerate(params):
+    for i, params_i in enumerate(params_one_script):
         if isinstance(params_i, str):
             str_i = f"'{params_i}'"
         else:
@@ -370,7 +367,7 @@ def execute_function_in_slurm_bash(name_script, name_function, params, n_core=15
 
     #### params to print in script name
     params_str_name = ''
-    for i, params_i in enumerate(params):
+    for i, params_i in enumerate(params_one_script):
 
         str_i = str(params_i)
 
@@ -418,21 +415,56 @@ def execute_function_in_slurm_bash(name_script, name_function, params, n_core=15
         os.fchmod(f.fileno(), mode = stat.S_IRWXU)
         f.close()
 
-    ###synchro
-    sync_folders__push_to_mnt()
+    return slurm_bash_script_name
+
+def execute_script_slurm(slurm_bash_script_name):
 
     #### execute bash
-    print(f'#### slurm submission : from {name_script} execute {name_function}({params})')
+    print(f'#### slurm submission : {slurm_bash_script_name}')
     os.chdir(os.path.join(path_mntdata, 'Scripts_slurm'))
     subprocess.run([f'sbatch {slurm_bash_script_name}'], shell=True) 
 
-    # wait subprocess to lauch before removing
-    #time.sleep(4)
-    #os.remove(slurm_script_name)
-    #os.remove(slurm_bash_script_name)
+
+#name_script, name_function, params = 'n05_precompute_Cxy', 'precompute_surrogates_coh', [sujet]
+def execute_function_in_slurm_bash(name_script, name_function, params, n_core=15, mem='15G'):
+
+    script_path = os.getcwd()
+
+    #### write process
+    if any(isinstance(i, list) for i in params):
+
+        slurm_bash_script_name_list = []
+
+        for one_param_set in params:
+            
+            _slurm_bash_script_name = write_script_slurm(name_script, name_function, one_param_set, n_core, mem)
+            slurm_bash_script_name_list.append(_slurm_bash_script_name)
+
+    else:
+
+        slurm_bash_script_name = write_script_slurm(name_script, name_function, params, n_core, mem)
+
+    #### synchro
+    sync_folders__push_to_mnt()
+
+    #### exec
+    if any(isinstance(i, list) for i in params):
+
+        for _slurm_bash_script_name in slurm_bash_script_name_list:
+            execute_script_slurm(_slurm_bash_script_name)
+            
+    else:
+
+        execute_script_slurm(slurm_bash_script_name)
 
     #### get back to original path
     os.chdir(script_path)
+
+
+
+
+
+
 
 
 
@@ -550,6 +582,24 @@ def load_data_sujet(sujet, cond):
 
     return data
 
+
+def load_data_sujet_CSD(sujet, cond):
+
+    path_source = os.getcwd()
+    
+    os.chdir(path_prep)
+
+    raw = mne.io.read_raw_fif(f'{sujet}_{cond}_CSD.fif', preload=True, verbose='critical')
+
+    data = raw.get_data()
+
+    #### go back to path source
+    os.chdir(path_source)
+
+    #### free memory
+    del raw
+
+    return data
 
 
 def get_srate(sujet):
@@ -984,6 +1034,34 @@ def get_MI_2sig(x, y):
 
 
 
+def get_ISPC_2sig(x, y):
+
+    ##### collect "eulerized" phase angle differences
+    phase_angle_diff = np.exp(1j*(np.angle(x)-np.angle(y)))
+
+    ##### compute ISPC
+    ISPC = np.abs( np.mean(phase_angle_diff) )
+
+    return ISPC
+
+
+
+def get_WPLI_2sig(x, y):
+
+    phase_angle_diff = np.exp(1j*(np.angle(x) - np.angle(y)))
+
+    # Extract imaginary part (which is sin(phase difference))
+    im_part = np.imag(phase_angle_diff)
+    
+    # Compute the weighted phase lag index (wPLI)
+    numerator = np.abs(np.mean(np.sign(im_part)))  # Mean of the sign of the imaginary part
+    denominator = np.mean(np.abs(im_part))  # Mean of the absolute imaginary part
+    
+    WPLI = numerator / denominator
+
+    return WPLI
+
+
 
 
 
@@ -1038,13 +1116,30 @@ def zscore_mat(x):
 
 
 
-def rscore(x):
 
-    mad = np.median( np.abs(x-np.median(x)) ) # median_absolute_deviation
+def rscore(x, median=None, mad=None, axis=0):
+    """
+    Computes the robust z-score for a vector or 2D matrix along a specified axis.
+    
+    Parameters:
+    - x: np.ndarray, input data (1D or 2D).
+    - median: float or np.ndarray, precomputed median (optional).
+    - mad: float or np.ndarray, precomputed median absolute deviation (optional).
+    - axis: int, axis along which to compute the median and MAD (default: 0).
+    
+    Returns:
+    - rzscore_x: np.ndarray, robust z-score of the input along the given axis.
+    """
+    if median is None:
+        median = np.median(x, axis=axis, keepdims=True)  # Compute median along the given axis
+    
+    if mad is None:
+        mad = np.median(np.abs(x - median), axis=axis, keepdims=True)  # Compute MAD along the given axis
 
-    rzscore_x = (x-np.median(x)) * 0.6745 / mad
+    rzscore_x = (x - median) * 0.6745 / mad  # Compute robust z-score
 
     return rzscore_x
+
     
 
 

@@ -26,6 +26,11 @@ sujet_list = ['01NM_MW', '02NM_OL', '03NM_MC', '04NM_LS', '05NM_JS', '06NM_HC', 
               '53DL_23', '54DL_24', '55DL_25', '56DL_26', '57DL_27', '58DL_28', '59DL_29', '60DL_30', '61DL_31', '62DL_32', '63DL_34',
               ]
 
+sujet_list_FC = ['01NM_MW', '02NM_OL', '04NM_LS', '05NM_JS', '06NM_HC', '07NM_YB', '08NM_CM', '10NM_VA', '12NM_PS', '13NM_JP', '14NM_LD', '15PH_JS', '19PH_VA', '23IL_DM', 
+                 '24IL_DJ', '26IL_AP', '27IL_SL', '28IL_LL', '31IL_MA', '33IL_BA', '34IL_CM', '35IL_EA', '37DL_05', '38DL_06', '39DL_07', '40DL_08', '41DL_11', '42DL_12', 
+                 '43DL_13', '44DL_14', '45DL_15', '46DL_16', '47DL_17', '48DL_18', '49DL_19', '50DL_20', '51DL_21', '52DL_22', '53DL_23', '54DL_24', '55DL_25', '56DL_26', 
+                 '57DL_27', '58DL_28', '59DL_29', '60DL_30', '61DL_31', '62DL_32', '63DL_34']
+
 cond_list = ['VS', 'CHARGE']
 
 sujet_project_nomenclature = {'NM' : 'NORMATIVE', 'PH' : 'PHYSIOLOGY', 'IL' : 'ITL_LEO', 'DL' : 'DYSLEARN'}
@@ -343,9 +348,15 @@ tf_stats_percentile_cluster_size_thresh = 75
 ######## FC ########
 ########################
 
+nrespcycle_FC = 100
+stretch_point_FC = 250
+ncycle_FC = 10
+MI_window_size = int(1*srate)
 freq_band_fc_list = ['theta', 'alpha', 'gamma']
 freq_band_fc = {'theta' : [4,8], 'alpha' : [8,12], 'gamma' : [80,150]}
 n_surr_fc = 1000
+ISPC_ncycles = {'theta' : 10, 'alpha' : 10, 'gamma' : 30}
+ISPC_window_size = {'theta' : int(ISPC_ncycles['theta']/freq_band_fc['theta'][0]*srate), 'alpha' : int(ISPC_ncycles['alpha']/freq_band_fc['alpha'][0]*srate), 'gamma' : int(ISPC_ncycles['gamma']/freq_band_fc['gamma'][0]*srate)}
 
 
 
