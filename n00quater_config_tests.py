@@ -11,8 +11,6 @@ debug = False
 
 
 def test_FC_metrics():
-    
-
 
     def generate_synchronized_signals(duration_tot=1200, num_windows=50, window_dur=5, noise_coeff=1, freq_sync=10, fs=500, nshift=1000, amp_coeff=2):
             

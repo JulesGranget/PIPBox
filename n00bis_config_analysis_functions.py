@@ -1755,8 +1755,8 @@ def nk_analysis(ecg_i, srate):
 #     return stats_res
 
 
-# data_baseline, data_cond, n_surr = data_baseline, data_cond, n_surr_fc
-def get_permutation_2groups(data_baseline, data_cond, n_surr, mode_grouped='mean', mode_generate_surr='minmax'):
+# data_baseline, data_cond, n_surr = data_Cxy_baseline[:, chan_i], data_Cxy_cond[:, chan_i], n_surrogates_coh
+def get_permutation_2groups(data_baseline, data_cond, n_surr, mode_grouped='median', mode_generate_surr='percentile', percentile_thresh=[0.5, 99.5]):
 
     if debug:
         plt.hist(data_baseline, bins=50, alpha=0.5, label='baseline')
@@ -1770,9 +1770,9 @@ def get_permutation_2groups(data_baseline, data_cond, n_surr, mode_grouped='mean
     n_trial_tot = data_shuffle.shape[0]
 
     if mode_grouped == 'mean':
-        obs_distrib = data_baseline.mean() - data_cond.mean()
+        obs_distrib = np.mean(data_cond - data_baseline)
     elif mode_grouped == 'median':
-        obs_distrib = np.median(data_baseline) - np.median(data_cond)
+        obs_distrib = np.median(data_cond - data_baseline)
 
     surr_distrib = np.zeros((n_surr, 2))
 
@@ -1793,7 +1793,7 @@ def get_permutation_2groups(data_baseline, data_cond, n_surr, mode_grouped='mean
         if mode_generate_surr == 'minmax':
             surr_distrib[surr_i, 0], surr_distrib[surr_i, 1] = diff_shuffle.min(), diff_shuffle.max()
         elif mode_generate_surr == 'percentile':
-            surr_distrib[surr_i, 0], surr_distrib[surr_i, 1] = np.percentile(diff_shuffle, 1), np.percentile(diff_shuffle, 99)    
+            surr_distrib[surr_i, 0], surr_distrib[surr_i, 1] = np.percentile(diff_shuffle, percentile_thresh[0]), np.percentile(diff_shuffle, percentile_thresh[1])    
 
     if debug:
         count, _, _ = plt.hist(surr_distrib[:,0], bins=50, color='k', alpha=0.5)
@@ -1809,7 +1809,8 @@ def get_permutation_2groups(data_baseline, data_cond, n_surr, mode_grouped='mean
 
     #### thresh
     # surr_dw, surr_up = np.percentile(surr_distrib[:,0], 2.5, axis=0), np.percentile(surr_distrib[:,1], 97.5, axis=0)
-    surr_dw, surr_up = np.percentile(surr_distrib[:,0], 0.5, axis=0), np.percentile(surr_distrib[:,1], 99.5, axis=0)
+    # surr_dw, surr_up = np.percentile(surr_distrib[:,0], 0.5, axis=0), np.percentile(surr_distrib[:,1], 99.5, axis=0)
+    surr_dw, surr_up = np.percentile(surr_distrib[:,0], percentile_thresh[0], axis=0), np.percentile(surr_distrib[:,1], percentile_thresh[1], axis=0)
 
     if obs_distrib < surr_dw or obs_distrib > surr_up:
         stats_res = True
@@ -1947,8 +1948,8 @@ def get_permutation_2groups(data_baseline, data_cond, n_surr, mode_grouped='mean
 
 
 
-# data_baseline, data_cond, n_surr = data_baseline, data_cond, n_surr_fc
-def get_permutation_cluster_1d(data_baseline, data_cond, n_surr, mode_grouped='mean', mode_generate_surr='minmax', mode_select_thresh='mean', size_thresh_alpha=0.01):
+# data_baseline, data_cond, n_surr = data_baseline_rscore, data_cond_rscore, n_surr_fc
+def get_permutation_cluster_1d(data_baseline, data_cond, n_surr, mode_grouped='median', mode_generate_surr='percentile_time', mode_select_thresh='percentile_time', size_thresh_alpha=0.01):
 
     n_trials_baselines = data_baseline.shape[0]
     len_sig = data_baseline.shape[-1]
@@ -1965,19 +1966,22 @@ def get_permutation_cluster_1d(data_baseline, data_cond, n_surr, mode_grouped='m
 
     if debug:
         time = np.arange(len_sig)
-        sem_baseline = data_baseline.std(axis=0)/np.sqrt(data_baseline.shape[0])
-        sem_cond = data_cond.std(axis=0)/np.sqrt(data_cond.shape[0])
+        rsem_baseline = scipy.stats.median_abs_deviation(data_baseline, axis=0)/np.sqrt(data_baseline.shape[0])
+        rsem_cond = scipy.stats.median_abs_deviation(data_cond, axis=0)/np.sqrt(data_cond.shape[0])
 
         plt.plot(time, data_baseline_grouped, label='baseline', color='c')
-        plt.fill_between(time, data_baseline_grouped-sem_baseline, data_baseline_grouped+sem_baseline, color='c', alpha=0.5)
+        plt.fill_between(time, data_baseline_grouped-rsem_baseline, data_baseline_grouped+rsem_baseline, color='c', alpha=0.5)
         plt.plot(time, data_cond_grouped, label='cond', color='g')
-        plt.fill_between(time, data_cond_grouped-sem_cond, data_cond_grouped+sem_cond, color='g', alpha=0.5)
+        plt.fill_between(time, data_cond_grouped-rsem_cond, data_cond_grouped+rsem_cond, color='g', alpha=0.5)
         plt.legend()
         plt.show()
 
     obs_distrib = data_cond_grouped - data_baseline_grouped
 
-    surr_distrib = np.zeros((n_surr, 2))
+    if mode_generate_surr in ['minmax', 'percentile']:
+        surr_distrib = np.zeros((n_surr, 2))
+    elif mode_generate_surr == 'percentile_time':
+        surr_distrib = np.zeros((n_surr, len_sig))
 
     #surr_i = 0
     for surr_i in range(n_surr):
@@ -2008,6 +2012,8 @@ def get_permutation_cluster_1d(data_baseline, data_cond, n_surr, mode_grouped='m
             surr_distrib[surr_i, 0], surr_distrib[surr_i, 1] = diff_shuffle.min(), diff_shuffle.max()
         elif mode_generate_surr == 'percentile':
             surr_distrib[surr_i, 0], surr_distrib[surr_i, 1] = np.percentile(diff_shuffle, 1), np.percentile(diff_shuffle, 99)    
+        elif mode_generate_surr == 'percentile_time':
+            surr_distrib[surr_i, :] = diff_shuffle
 
     if debug:
         count, _, _ = plt.hist(surr_distrib[:,0], bins=50, color='k', alpha=0.5)
@@ -2015,7 +2021,7 @@ def get_permutation_cluster_1d(data_baseline, data_cond, n_surr, mode_grouped='m
         count, _, _ = plt.hist(obs_distrib, bins=50, label='obs', color='g')
         plt.vlines([np.median(surr_distrib[:,0])], ymin=0, ymax=count.max(), label='median', colors='r')
         plt.vlines([np.median(surr_distrib[:,1])], ymin=0, ymax=count.max(), colors='r')
-        plt.vlines([np.mean(surr_distrib[:,0])], ymin=0, ymax=count.max(), label='meab', colors='b')
+        plt.vlines([np.mean(surr_distrib[:,0])], ymin=0, ymax=count.max(), label='mean', colors='b')
         plt.vlines([np.mean(surr_distrib[:,1])], ymin=0, ymax=count.max(), colors='b')
         plt.vlines([np.percentile(surr_distrib[:,0], 1)], ymin=0, ymax=count.max(), label='perc_1_99', colors='r', linestyles='--')
         plt.vlines([np.percentile(surr_distrib[:,1], 99)], ymin=0, ymax=count.max(), colors='r', linestyles='--')
@@ -2029,10 +2035,20 @@ def get_permutation_cluster_1d(data_baseline, data_cond, n_surr, mode_grouped='m
         plt.hlines([np.median(surr_distrib[:,1])], xmin=0, xmax=len_sig, colors='r')
         plt.hlines([np.mean(surr_distrib[:,0])], xmin=0, xmax=len_sig, label='mean', colors='b')
         plt.hlines([np.mean(surr_distrib[:,1])], xmin=0, xmax=len_sig, colors='b')
-        plt.hlines([np.percentile(surr_distrib[:,0], 1)], xmin=0, xmax=len_sig, label='perc_1_99', colors='r', linestyles='--')
-        plt.hlines([np.percentile(surr_distrib[:,1], 99)], xmin=0, xmax=len_sig, colors='r', linestyles='--')
+        plt.hlines([np.percentile(surr_distrib[:,0], 0.5)], xmin=0, xmax=len_sig, label='perc_005_995', colors='r', linestyles='--')
+        plt.hlines([np.percentile(surr_distrib[:,1], 99.5)], xmin=0, xmax=len_sig, colors='r', linestyles='--')
         plt.hlines([np.percentile(surr_distrib[:,0], 2.5)], xmin=0, xmax=len_sig, label='perc_025_975', colors='r', linestyles='-.')
         plt.hlines([np.percentile(surr_distrib[:,1], 97.5)], xmin=0, xmax=len_sig, colors='r', linestyles='-.')
+        plt.hlines([np.percentile(surr_distrib[:,0], 2.5)], xmin=0, xmax=len_sig, label='perc_025_975', colors='r', linestyles='-.')
+        plt.hlines([np.percentile(surr_distrib[:,1], 97.5)], xmin=0, xmax=len_sig, colors='r', linestyles='-.')
+        plt.legend()
+        plt.show()
+
+        plt.plot(obs_distrib)
+        plt.plot(np.percentile(surr_distrib, 0.5, axis=0), color='r', linestyle='--')
+        plt.plot(np.percentile(surr_distrib, 99.5, axis=0), color='r', linestyle='--')
+        plt.plot(np.percentile(surr_distrib, 2.5, axis=0), color='m', linestyle='-.')
+        plt.plot(np.percentile(surr_distrib, 97.5, axis=0), color='m', linestyle='-.')
         plt.legend()
         plt.show()
 
@@ -2043,6 +2059,9 @@ def get_permutation_cluster_1d(data_baseline, data_cond, n_surr, mode_grouped='m
         surr_dw, surr_up = np.mean(surr_distrib[:,0], axis=0), np.median(surr_distrib[:,1], axis=0)
     elif mode_select_thresh == 'median':
         surr_dw, surr_up = np.median(surr_distrib[:,0], axis=0), np.median(surr_distrib[:,1], axis=0)
+    elif mode_select_thresh == 'percentile_time':
+        # surr_dw, surr_up = np.percentile(surr_distrib, 0.5, axis=0), np.percentile(surr_distrib, 99.5, axis=0)
+        surr_dw, surr_up = np.percentile(surr_distrib, 2.5, axis=0), np.percentile(surr_distrib, 97.5, axis=0)
 
     #### thresh data
     mask = (obs_distrib < surr_dw) | (obs_distrib > surr_up)
