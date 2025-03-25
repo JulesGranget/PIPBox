@@ -65,7 +65,7 @@ def from_pairs_2mat(data, pairs):
 
 def plot_allsujet_FC_time_stretch():
 
-    #fc_metric = 'MI'
+    #fc_metric = 'ISPC'
     for fc_metric in ['MI', 'ISPC', 'WPLI']:
 
         print(f'{fc_metric} PLOT stretch', flush=True)
@@ -83,16 +83,27 @@ def plot_allsujet_FC_time_stretch():
                 pairs_to_compute.append(f'{pair_A}-{pair_B}')        
 
         cond_sel = ['VS', 'CHARGE']
-        fc_allsujet = np.zeros((len(sujet_list_FC), len(cond_sel), len(pairs_to_compute), nrespcycle_FC, stretch_point_FC))
 
-        os.chdir(os.path.join(path_precompute, 'FC', 'MI'))
+        if fc_metric == 'MI':
+            fc_allsujet = np.zeros((len(sujet_list_FC), len(cond_sel), len(pairs_to_compute), nrespcycle_FC, stretch_point_FC))
+        else:
+            fc_allsujet = np.zeros((len(sujet_list_FC), len(pairs_to_compute), len(cond_sel), len(freq_band_fc_list), nrespcycle_FC, stretch_point_FC))
+
+        os.chdir(os.path.join(path_precompute, 'FC', fc_metric))
 
         for sujet_i, sujet in enumerate(sujet_list_FC):
 
-            _fc_sujet = xr.open_dataarray(f'MI_stretch_{sujet}.nc')
+            if fc_metric == 'MI':
+                _fc_sujet = xr.open_dataarray(f'{fc_metric}_stretch_{sujet}.nc')
+            else:
+                _fc_sujet = xr.open_dataarray(f'{fc_metric}_{sujet}_stretch.nc')
+                
             fc_allsujet[sujet_i] = _fc_sujet.values
 
-        fc_allsujet_dict = {'sujet' : sujet_list_FC, 'cond' : cond_sel, 'pair' : pairs_to_compute, 'ntrials' : np.arange(nrespcycle_FC), 'time' : np.arange(stretch_point_FC)}
+        if fc_metric == 'MI':
+            fc_allsujet_dict = {'sujet' : sujet_list_FC, 'cond' : cond_sel, 'pair' : pairs_to_compute, 'ntrials' : np.arange(nrespcycle_FC), 'time' : np.arange(stretch_point_FC)}
+        else:
+            fc_allsujet_dict = {'sujet' : sujet_list_FC, 'pair' : pairs_to_compute, 'cond' : cond_sel, 'band' : freq_band_fc_list, 'ntrials' : np.arange(nrespcycle_FC), 'time' : np.arange(stretch_point_FC)}
 
         fc_allsujet = xr.DataArray(data=fc_allsujet, dims=fc_allsujet_dict.keys(), coords=fc_allsujet_dict.values())
 
@@ -107,14 +118,26 @@ def plot_allsujet_FC_time_stretch():
         fc_allsujet_rscore = fc_allsujet.copy()
 
         #### rscore
-        for cond in cond_sel:
+        if fc_metric == 'MI':
+            for cond in cond_sel:
 
-            for pair in pairs_to_compute:
+                for pair in pairs_to_compute:
 
-                for sujet in sujet_list_FC:
+                    for sujet in sujet_list_FC:
 
-                    data_chunk = fc_allsujet.loc[sujet, cond, pair, :]
-                    fc_allsujet_rscore.loc[sujet, cond, pair, :] = (data_chunk - data_chunk.median('time')) * 0.6745 / scipy.stats.median_abs_deviation(data_chunk)
+                        data_chunk = fc_allsujet.loc[sujet, cond, pair, :]
+                        fc_allsujet_rscore.loc[sujet, cond, pair, :] = (data_chunk - data_chunk.median('time')) * 0.6745 / scipy.stats.median_abs_deviation(data_chunk)
+        else:
+            for cond in cond_sel:
+
+                for pair in pairs_to_compute:
+
+                    for band in freq_band_fc_list:
+                    
+                        for sujet in sujet_list_FC:
+
+                            data_chunk = fc_allsujet.loc[sujet, pair, cond, band, :]
+                            fc_allsujet_rscore.loc[sujet, pair, cond, band, :] = (data_chunk - data_chunk.median('time')) * 0.6745 / scipy.stats.median_abs_deviation(data_chunk)
 
         if debug:
 
@@ -145,8 +168,8 @@ def plot_allsujet_FC_time_stretch():
                         data_chunk = fc_allsujet_rscore.loc[:, cond, pair, :].median('sujet').values
                         mad = scipy.stats.median_abs_deviation(fc_allsujet_rscore.loc[:, cond, pair, :].values, axis=0)
                     else:
-                        data_chunk = fc_allsujet_rscore.loc[:, cond, pair, :].median('sujet').values
-                        mad = scipy.stats.median_abs_deviation(fc_allsujet_rscore.loc[:, cond, pair, :].values, axis=0)
+                        data_chunk = fc_allsujet_rscore.loc[:, pair, cond, band, :].median('sujet').values
+                        mad = scipy.stats.median_abs_deviation(fc_allsujet_rscore.loc[:, pair, cond, band, :].values, axis=0)
                             
                     data_chunk_up, data_chunk_down = data_chunk + mad, data_chunk - mad
                     vlim = np.concatenate([vlim, data_chunk_up, data_chunk_down])
@@ -185,10 +208,10 @@ def plot_allsujet_FC_time_stretch():
 
                 else:
                 
-                    cond = fc_allsujet_rscore.loc[:, 'CHARGE', pair, :].median('sujet').values
-                    mad_cond = scipy.stats.median_abs_deviation(fc_allsujet_rscore.loc[:, 'CHARGE', pair, :].values, axis=0)
-                    baseline = fc_allsujet_rscore.loc[:, 'VS', pair, :].median('sujet').values
-                    mad_baseline = scipy.stats.median_abs_deviation(fc_allsujet_rscore.loc[:, 'VS', pair, :].values, axis=0)
+                    cond = fc_allsujet_rscore.loc[:, pair, 'CHARGE', band, :].median('sujet').values
+                    mad_cond = scipy.stats.median_abs_deviation(fc_allsujet_rscore.loc[:, pair, 'CHARGE', band, :].values, axis=0)
+                    baseline = fc_allsujet_rscore.loc[:, pair, 'VS', band, :].median('sujet').values
+                    mad_baseline = scipy.stats.median_abs_deviation(fc_allsujet_rscore.loc[:, pair, 'VS', band, :].values, axis=0)
 
                 ax.set_ylim(vlim_band[band]['min'], vlim_band[band]['max'])
 
@@ -349,7 +372,7 @@ def plot_allsujet_FC_time_stretch():
 
 def plot_allsujet_FC_mat_stretch():
 
-    #fc_metric = 'MI'
+    #fc_metric = 'ISPC'
     for fc_metric in ['MI', 'ISPC', 'WPLI']:
 
         print(f'{fc_metric} PLOT stretch', flush=True)
@@ -372,16 +395,26 @@ def plot_allsujet_FC_mat_stretch():
 
         cond_sel = ['VS', 'CHARGE']
 
-        fc_allsujet = np.zeros((len(sujet_list_FC), len(cond_sel), len(pairs_to_compute), nrespcycle_FC, stretch_point_FC))
+        if fc_metric == 'MI':
+            fc_allsujet = np.zeros((len(sujet_list_FC), len(cond_sel), len(pairs_to_compute), nrespcycle_FC, stretch_point_FC))
+        else:
+            fc_allsujet = np.zeros((len(sujet_list_FC), len(pairs_to_compute), len(cond_sel), len(freq_band_fc_list), nrespcycle_FC, stretch_point_FC))
 
-        os.chdir(os.path.join(path_precompute, 'FC', 'MI'))
+        os.chdir(os.path.join(path_precompute, 'FC', fc_metric))
 
         for sujet_i, sujet in enumerate(sujet_list_FC):
 
-            _fc_sujet = xr.open_dataarray(f'MI_stretch_{sujet}.nc')
+            if fc_metric == 'MI':
+                _fc_sujet = xr.open_dataarray(f'{fc_metric}_stretch_{sujet}.nc')
+            else:
+                _fc_sujet = xr.open_dataarray(f'{fc_metric}_{sujet}_stretch.nc')
+                
             fc_allsujet[sujet_i] = _fc_sujet.values
 
-        fc_allsujet_dict = {'sujet' : sujet_list_FC, 'cond' : cond_sel, 'pair' : pairs_to_compute, 'ntrials' : np.arange(nrespcycle_FC), 'time' : np.arange(stretch_point_FC)}
+        if fc_metric == 'MI':
+            fc_allsujet_dict = {'sujet' : sujet_list_FC, 'cond' : cond_sel, 'pair' : pairs_to_compute, 'ntrials' : np.arange(nrespcycle_FC), 'time' : np.arange(stretch_point_FC)}
+        else:
+            fc_allsujet_dict = {'sujet' : sujet_list_FC, 'pair' : pairs_to_compute, 'cond' : cond_sel, 'band' : freq_band_fc_list, 'ntrials' : np.arange(nrespcycle_FC), 'time' : np.arange(stretch_point_FC)}
 
         fc_allsujet = xr.DataArray(data=fc_allsujet, dims=fc_allsujet_dict.keys(), coords=fc_allsujet_dict.values())
 
@@ -395,7 +428,7 @@ def plot_allsujet_FC_mat_stretch():
 
         shifted_fc_allsujet = fc_allsujet_median.roll(time=-phase_shift, roll_coords=False)
 
-        #band_i, band = 0, freq_band_fc_list
+        #band_i, band = 0, freq_band_fc_list[0]
         for band_i, band in enumerate(freq_band_fc_list):
 
             fc_mat = np.zeros((len(phase_list), len(chan_list_eeg_short), len(chan_list_eeg_short)))
@@ -420,7 +453,7 @@ def plot_allsujet_FC_mat_stretch():
                         data_chunk_diff = shifted_fc_allsujet.loc[:, 'CHARGE', pair, phase_vec[phase]].median('sujet').values - shifted_fc_allsujet.loc[:, 'VS', pair, phase_vec[phase]].median('sujet').values
                         
                     else:
-                        data_chunk_diff = shifted_fc_allsujet.loc[:, band, 'CHARGE', pair, phase_vec[phase]].median('sujet').values - shifted_fc_allsujet.loc[:, band, 'VS', pair, phase_vec[phase]].median('sujet').values
+                        data_chunk_diff = shifted_fc_allsujet.loc[:, pair, 'CHARGE', band, phase_vec[phase]].median('sujet').values - shifted_fc_allsujet.loc[:, pair, 'VS', band, phase_vec[phase]].median('sujet').values
 
                     fc_val = np.median(data_chunk_diff)
 
@@ -522,7 +555,7 @@ def plot_allsujet_FC_mat_stretch():
                             data_chunk_diff = shifted_fc_allsujet[:, cond_i, pair_i, win_start:win_stop].median('sujet').values - shifted_fc_allsujet[:, baseline_i, pair_i, win_start:win_stop].median('sujet').values
                             _clusters = clusters_time[pair_i, win_start:win_stop].values
                         else:
-                            data_chunk_diff = shifted_fc_allsujet[:, cond_i, band_i, pair_i, win_start:win_stop].median('sujet').values - shifted_fc_allsujet[:, cond_i, band_i, pair_i, win_start:win_stop].median('sujet').values
+                            data_chunk_diff = shifted_fc_allsujet[:, cond_i, win_start:win_stop].median('sujet').values - shifted_fc_allsujet[:, baseline_i, win_start:win_stop].median('sujet').values
                             _clusters = clusters_time[band_i, pair_i, win_start:win_stop].values
 
                         fc_val = np.median(data_chunk_diff)
@@ -565,7 +598,7 @@ def plot_allsujet_FC_mat_stretch():
                             data_chunk_diff = shifted_fc_allsujet[:, cond_i, pair_i, win_start:win_stop].median('sujet').values - shifted_fc_allsujet[:, baseline_i, pair_i, win_start:win_stop].median('sujet').values
                             _clusters = clusters_time[pair_i, win_start:win_stop].values
                         else:
-                            data_chunk_diff = shifted_fc_allsujet[:, band_i, cond_i, pair_i, win_start:win_stop].median('sujet').values - shifted_fc_allsujet[:, band_i, baseline_i, pair_i, win_start:win_stop].median('sujet').values
+                            data_chunk_diff = shifted_fc_allsujet[:, pair_i, cond_i, band_i, win_start:win_stop].median('sujet').values - shifted_fc_allsujet[:, pair_i, baseline_i, band_i, win_start:win_stop].median('sujet').values
                             _clusters = clusters_time[band_i, pair_i, win_start:win_stop].values
 
                         fc_val = np.median(data_chunk_diff)

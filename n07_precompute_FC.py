@@ -495,7 +495,7 @@ def get_MI_sujet_stretch(sujet):
 
 
 
-#sujet = sujet_list_FC[0]
+#sujet = sujet_list_FC[38]
 def get_ISPC_WPLI_stretch(sujet):
     
     # Check if results already exist
@@ -535,7 +535,7 @@ def get_ISPC_WPLI_stretch(sujet):
             for cond_i, cond in enumerate(cond_sel):
 
                 respfeatures_sujet_chunk = respfeatures_sujet[cond][:nrespcycle_FC+20] 
-                len_sig_to_analyze = respfeatures_sujet_chunk['next_inspi_index'].values[-1]
+                len_sig_to_analyze = respfeatures_sujet_chunk['next_inspi_index'].values[-1]+srate
 
                 data = load_data_sujet_CSD(sujet, cond)[:,:len_sig_to_analyze]
                 data = data[[idx_A, idx_B],:]

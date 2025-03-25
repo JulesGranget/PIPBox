@@ -32,7 +32,7 @@ def compute_stats_MI_allsujet_state_stretch():
         print(f'ALREADY DONE STATS {fc_metric} STRETCH')
         return
 
-    print(f'compute {fc_metric} stretch:{stretch}')
+    print(f'compute {fc_metric}')
 
     #### load
     pairs_to_compute = []
@@ -188,158 +188,259 @@ def compute_stats_MI_allsujet_state_stretch():
     
     
 
-#stretch = True
-def compute_stats_ispc_wpli_allsujet_state(stretch):
+def compute_stats_ispc_wpli_allsujet_state_stretch():
 
-    #fc_metric = 'WPLI'
+    #fc_metric = 'ISPC'
     for fc_metric in ['WPLI', 'ISPC']:
 
         #### verify computation
-        if stretch:
+        if os.path.exists(os.path.join(path_precompute, 'FC', fc_metric, f'{fc_metric}_allsujet_STATS_state_stretch.nc')):
+            print(f'ALREADY DONE STATS')
+            continue
 
-            if os.path.exists(os.path.join(path_precompute, 'FC', fc_metric, f'{fc_metric}_allsujet_STATS_state_stretch.nc')):
-                print(f'ALREADY DONE STATS {fc_metric} STRETCH')
-                continue
-
-        else:
-
-            if os.path.exists(os.path.join(path_precompute, 'FC', fc_metric, f'{fc_metric}_allsujet_STATS_state.nc')):
-                print(f'ALREADY DONE STATS {fc_metric}')
-                continue
-
-        print(f'compute {fc_metric} stretch:{stretch}')
+        print(f'compute {fc_metric}')
 
         #### load
+        pairs_to_compute = []
+
+        for pair_A in chan_list_eeg_short:
+
+            for pair_B in chan_list_eeg_short:
+
+                if pair_A == pair_B or f'{pair_A}-{pair_B}' in pairs_to_compute or f'{pair_B}-{pair_A}' in pairs_to_compute:
+                    continue
+
+                pairs_to_compute.append(f'{pair_A}-{pair_B}')        
+
+        cond_sel = ['VS', 'CHARGE']
+        fc_allsujet = np.zeros((len(sujet_list_FC), len(pairs_to_compute), len(cond_sel), len(freq_band_fc_list), nrespcycle_FC, stretch_point_FC))
+
         os.chdir(os.path.join(path_precompute, 'FC', fc_metric))
-        if stretch:
-            fc_allsujet = xr.open_dataarray(f'{fc_metric}_allsujet_stretch.nc')
-        else:
-            fc_allsujet = xr.open_dataarray(f'{fc_metric}_allsujet.nc')
 
-        time_vec = fc_allsujet['time'].values
-        
-        if stretch:
-            time_vec_stats = time_vec
-        else:
-            time_vec_stats = time_vec <= 0
+        for sujet_i, sujet in enumerate(sujet_list_FC):
 
-        pairs_to_compute = fc_allsujet['pair'].values
+            _fc_sujet = xr.open_dataarray(f'{fc_metric}_{sujet}_stretch.nc')
+            fc_allsujet[sujet_i] = _fc_sujet.values
 
-        if stretch:
+        fc_allsujet_dict = {'sujet' : sujet_list_FC, 'pair' : pairs_to_compute, 'cond' : cond_sel, 'band' : freq_band_fc_list, 'ntrials' : np.arange(nrespcycle_FC), 'time' : np.arange(stretch_point_FC)}
 
-            phase_list = ['whole', 'I', 'T_IE', 'E', 'T_EI']
-            phase_shift = 125 
-            # 0-125, 125-375, 375-625, 625-875, 875-1000, shift on origial TF
-            phase_vec = {'whole' : np.arange(stretch_point_ERP), 'I' : np.arange(250), 'T_IE' : np.arange(250)+250, 'E' : np.arange(250)+500, 'T_EI' : np.arange(250)+750} 
+        xr_fc_allsujet = xr.DataArray(data=fc_allsujet, dims=fc_allsujet_dict.keys(), coords=fc_allsujet_dict.values())
 
-            # pvals_wk = np.zeros((len(phase_list), len(freq_band_fc_list), pairs_to_compute.size))
-            pvals_perm = np.zeros((len(phase_list), len(freq_band_fc_list), pairs_to_compute.size))
+        phase_list = ['whole', 'I', 'T_IE', 'E', 'T_EI']
+        phase_shift = int(stretch_point_FC/4) 
+        # 0-125, 125-375, 375-625, 625-875, 875-1000, shift on origial TF
+        phase_vec = {'whole' : np.arange(stretch_point_FC), 'I' : np.arange(phase_shift), 'T_IE' : np.arange(phase_shift)+phase_shift, 
+                    'E' : np.arange(phase_shift)+phase_shift*2, 'T_EI' : np.arange(phase_shift)+phase_shift*3} 
 
-            shifted_fc_allsujet = fc_allsujet.roll(time=-phase_shift, roll_coords=False)
+        shifted_xr_fc_allsujet = xr_fc_allsujet.roll(time=-phase_shift, roll_coords=False)
 
-            for phase_i, phase in enumerate(phase_list):
+        shifted_xr_fc_allsujet = xr_fc_allsujet.median('ntrials')
 
-                for band_i, band in enumerate(freq_band_fc_list):
+        # pvals_wk = np.zeros((len(phase_list), len(freq_band_fc_list), pairs_to_compute.size))
+        pvals_perm = np.zeros((len(phase_list), len(freq_band_fc_list), len(pairs_to_compute)))
 
-                    print(phase, band)
-
-                    #pair_i, pair = 0, pairs_to_compute[0]
-                    for pair_i, pair in enumerate(pairs_to_compute):
-
-                        # print_advancement(pair_i, len(pairs_to_compute))
-
-                        data_baseline = np.median(shifted_fc_allsujet.loc[:, band, 'VS', pair, phase_vec[phase]].values, axis=1)
-                        data_cond = np.median(shifted_fc_allsujet.loc[:, band, 'CHARGE', pair, phase_vec[phase]].values, axis=1)
-
-                        # stat, pvals_wk[band_i, pair_i] = scipy.stats.wilcoxon(data_baseline, data_cond)
-                        pvals_perm[phase_i, band_i, pair_i] = get_permutation_2groups(data_baseline, data_cond, n_surr_fc, 
-                                                                                      mode_grouped='median', mode_generate_surr='percentile', percentile_thresh=[0.5, 99.5])
-
-                        if debug:
-
-                            plt.hist(data_baseline, bins=50, alpha=0.5, label='VS', color='b')
-                            plt.hist(data_cond, bins=50, alpha=0.5, label='CHARGE', color='r')
-                            plt.vlines([np.median(data_baseline)], ymin=0, ymax=10, color='b')
-                            plt.vlines([np.median(data_cond)], ymin=0, ymax=10, color='r')
-                            plt.title(f"signi:{pvals_perm[phase_i, band_i, pair_i]}")
-                            plt.legend()
-                            plt.show()
-
-
-            # Apply Benjamini-Hochberg correction
-            # for band_i in range(len(freq_band_fc_list)):
-            #     pvals_wk[band_i,:], pvals_adjusted, _, _ = multipletests(pvals_wk[band_i,:], alpha=0.05, method='fdr_bh')
-
-            if debug:
-
-                plt.plot(pvals_perm, label='perm')
-                # plt.plot(pvals_wk, label='Benjamini-Hochberg')
-                plt.legend()
-                plt.show()
-
-            #### export
-            fc_stats_dict = {'phase' : phase_list, 'band' : freq_band_fc_list, 'pair' : pairs_to_compute}
-
-            xr_fc_stats = xr.DataArray(data=pvals_perm, dims=fc_stats_dict.keys(), coords=fc_stats_dict.values())
-            
-            os.chdir(os.path.join(path_precompute, 'FC', fc_metric))
-
-            xr_fc_stats.to_netcdf(f'{fc_metric}_allsujet_STATS_state_stretch.nc')
-
-        else:
-
-            # pvals_wk = np.zeros((len(freq_band_fc_list), pairs_to_compute.size))
-            pvals_perm = np.zeros((len(freq_band_fc_list), pairs_to_compute.size))
+        for phase_i, phase in enumerate(phase_list):
 
             for band_i, band in enumerate(freq_band_fc_list):
 
-                print(band)
+                print(phase, band)
 
                 #pair_i, pair = 0, pairs_to_compute[0]
                 for pair_i, pair in enumerate(pairs_to_compute):
 
                     # print_advancement(pair_i, len(pairs_to_compute))
 
-                    data_baseline = np.median(fc_allsujet.loc[:, band, 'VS', pair, time_vec_stats].values, axis=1)
-                    data_cond = np.median(fc_allsujet.loc[:, band, 'CHARGE', pair, time_vec_stats].values, axis=1)
+                    data_baseline = np.median(shifted_xr_fc_allsujet.loc[:, pair, 'VS', band, phase_vec[phase]].values, axis=1)
+                    data_cond = np.median(shifted_xr_fc_allsujet.loc[:, pair, 'CHARGE', band, phase_vec[phase]].values, axis=1)
+
+                    # stat, pvals_wk[band_i, pair_i] = scipy.stats.wilcoxon(data_baseline, data_cond)
+                    pvals_perm[phase_i, band_i, pair_i] = get_permutation_2groups(data_baseline, data_cond, n_surr_fc, 
+                                                                                    mode_grouped='median', mode_generate_surr='percentile', percentile_thresh=[0.5, 99.5])
 
                     if debug:
 
-                        plt.hist(data_baseline, bins=50, alpha=0.5, label='VS')
-                        plt.hist(data_cond, bins=50, alpha=0.5, label='CHARGE')
-                        plt.vlines([np.median(data_baseline)], ymin=0, ymax=10, color='r')
+                        plt.hist(data_baseline, bins=50, alpha=0.5, label='VS', color='b')
+                        plt.hist(data_cond, bins=50, alpha=0.5, label='CHARGE', color='r')
+                        plt.vlines([np.median(data_baseline)], ymin=0, ymax=10, color='b')
                         plt.vlines([np.median(data_cond)], ymin=0, ymax=10, color='r')
+                        plt.title(f"signi:{pvals_perm[phase_i, band_i, pair_i]}")
                         plt.legend()
                         plt.show()
 
-                    # stat, pvals_wk[band_i, pair_i] = scipy.stats.wilcoxon(data_baseline, data_cond)
-                    pvals_perm[band_i, pair_i] = get_permutation_2groups(data_baseline, data_cond, n_surr_fc, 
-                                                                         mode_grouped='median', mode_generate_surr='percentile', percentile_thresh=[0.5, 99.5])
 
-            # Apply Benjamini-Hochberg correction
-            # for band_i in range(len(freq_band_fc_list)):
-            #     pvals_wk[band_i,:], pvals_adjusted, _, _ = multipletests(pvals_wk[band_i,:], alpha=0.05, method='fdr_bh')
+        # Apply Benjamini-Hochberg correction
+        # for band_i in range(len(freq_band_fc_list)):
+        #     pvals_wk[band_i,:], pvals_adjusted, _, _ = multipletests(pvals_wk[band_i,:], alpha=0.05, method='fdr_bh')
 
-            if debug:
+        if debug:
 
-                plt.plot(pvals_perm, label='perm')
-                # plt.plot(pvals_wk, label='Benjamini-Hochberg')
-                plt.legend()
-                plt.show()
+            plt.plot(pvals_perm, label='perm')
+            # plt.plot(pvals_wk, label='Benjamini-Hochberg')
+            plt.legend()
+            plt.show()
 
-            #### export
-            fc_stats_dict = {'band' : freq_band_fc_list, 'pair' : pairs_to_compute}
+        #### export
+        fc_stats_dict = {'phase' : phase_list, 'band' : freq_band_fc_list, 'pair' : pairs_to_compute}
 
-            xr_fc_stats = xr.DataArray(data=pvals_perm, dims=fc_stats_dict.keys(), coords=fc_stats_dict.values())
+        xr_fc_stats = xr.DataArray(data=pvals_perm, dims=fc_stats_dict.keys(), coords=fc_stats_dict.values())
+        
+        os.chdir(os.path.join(path_precompute, 'FC', fc_metric))
+
+        xr_fc_stats.to_netcdf(f'{fc_metric}_allsujet_STATS_state_stretch.nc')
+
+        
+
+
+# #stretch = True
+# def compute_stats_ispc_wpli_allsujet_state(stretch):
+
+#     #fc_metric = 'WPLI'
+#     for fc_metric in ['WPLI', 'ISPC']:
+
+#         #### verify computation
+#         if stretch:
+
+#             if os.path.exists(os.path.join(path_precompute, 'FC', fc_metric, f'{fc_metric}_allsujet_STATS_state_stretch.nc')):
+#                 print(f'ALREADY DONE STATS {fc_metric} STRETCH')
+#                 continue
+
+#         else:
+
+#             if os.path.exists(os.path.join(path_precompute, 'FC', fc_metric, f'{fc_metric}_allsujet_STATS_state.nc')):
+#                 print(f'ALREADY DONE STATS {fc_metric}')
+#                 continue
+
+#         print(f'compute {fc_metric} stretch:{stretch}')
+
+#         #### load
+#         os.chdir(os.path.join(path_precompute, 'FC', fc_metric))
+#         if stretch:
+#             fc_allsujet = xr.open_dataarray(f'{fc_metric}_allsujet_stretch.nc')
+#         else:
+#             fc_allsujet = xr.open_dataarray(f'{fc_metric}_allsujet.nc')
+
+#         time_vec = fc_allsujet['time'].values
+        
+#         if stretch:
+#             time_vec_stats = time_vec
+#         else:
+#             time_vec_stats = time_vec <= 0
+
+#         pairs_to_compute = fc_allsujet['pair'].values
+
+#         if stretch:
+
+#             phase_list = ['whole', 'I', 'T_IE', 'E', 'T_EI']
+#             phase_shift = 125 
+#             # 0-125, 125-375, 375-625, 625-875, 875-1000, shift on origial TF
+#             phase_vec = {'whole' : np.arange(stretch_point_ERP), 'I' : np.arange(250), 'T_IE' : np.arange(250)+250, 'E' : np.arange(250)+500, 'T_EI' : np.arange(250)+750} 
+
+#             # pvals_wk = np.zeros((len(phase_list), len(freq_band_fc_list), pairs_to_compute.size))
+#             pvals_perm = np.zeros((len(phase_list), len(freq_band_fc_list), pairs_to_compute.size))
+
+#             shifted_fc_allsujet = fc_allsujet.roll(time=-phase_shift, roll_coords=False)
+
+#             for phase_i, phase in enumerate(phase_list):
+
+#                 for band_i, band in enumerate(freq_band_fc_list):
+
+#                     print(phase, band)
+
+#                     #pair_i, pair = 0, pairs_to_compute[0]
+#                     for pair_i, pair in enumerate(pairs_to_compute):
+
+#                         # print_advancement(pair_i, len(pairs_to_compute))
+
+#                         data_baseline = np.median(shifted_fc_allsujet.loc[:, band, 'VS', pair, phase_vec[phase]].values, axis=1)
+#                         data_cond = np.median(shifted_fc_allsujet.loc[:, band, 'CHARGE', pair, phase_vec[phase]].values, axis=1)
+
+#                         # stat, pvals_wk[band_i, pair_i] = scipy.stats.wilcoxon(data_baseline, data_cond)
+#                         pvals_perm[phase_i, band_i, pair_i] = get_permutation_2groups(data_baseline, data_cond, n_surr_fc, 
+#                                                                                       mode_grouped='median', mode_generate_surr='percentile', percentile_thresh=[0.5, 99.5])
+
+#                         if debug:
+
+#                             plt.hist(data_baseline, bins=50, alpha=0.5, label='VS', color='b')
+#                             plt.hist(data_cond, bins=50, alpha=0.5, label='CHARGE', color='r')
+#                             plt.vlines([np.median(data_baseline)], ymin=0, ymax=10, color='b')
+#                             plt.vlines([np.median(data_cond)], ymin=0, ymax=10, color='r')
+#                             plt.title(f"signi:{pvals_perm[phase_i, band_i, pair_i]}")
+#                             plt.legend()
+#                             plt.show()
+
+
+#             # Apply Benjamini-Hochberg correction
+#             # for band_i in range(len(freq_band_fc_list)):
+#             #     pvals_wk[band_i,:], pvals_adjusted, _, _ = multipletests(pvals_wk[band_i,:], alpha=0.05, method='fdr_bh')
+
+#             if debug:
+
+#                 plt.plot(pvals_perm, label='perm')
+#                 # plt.plot(pvals_wk, label='Benjamini-Hochberg')
+#                 plt.legend()
+#                 plt.show()
+
+#             #### export
+#             fc_stats_dict = {'phase' : phase_list, 'band' : freq_band_fc_list, 'pair' : pairs_to_compute}
+
+#             xr_fc_stats = xr.DataArray(data=pvals_perm, dims=fc_stats_dict.keys(), coords=fc_stats_dict.values())
             
-            os.chdir(os.path.join(path_precompute, 'FC', fc_metric))
+#             os.chdir(os.path.join(path_precompute, 'FC', fc_metric))
 
-            xr_fc_stats.to_netcdf(f'{fc_metric}_allsujet_STATS_state.nc')
+#             xr_fc_stats.to_netcdf(f'{fc_metric}_allsujet_STATS_state_stretch.nc')
+
+#         else:
+
+#             # pvals_wk = np.zeros((len(freq_band_fc_list), pairs_to_compute.size))
+#             pvals_perm = np.zeros((len(freq_band_fc_list), pairs_to_compute.size))
+
+#             for band_i, band in enumerate(freq_band_fc_list):
+
+#                 print(band)
+
+#                 #pair_i, pair = 0, pairs_to_compute[0]
+#                 for pair_i, pair in enumerate(pairs_to_compute):
+
+#                     # print_advancement(pair_i, len(pairs_to_compute))
+
+#                     data_baseline = np.median(fc_allsujet.loc[:, band, 'VS', pair, time_vec_stats].values, axis=1)
+#                     data_cond = np.median(fc_allsujet.loc[:, band, 'CHARGE', pair, time_vec_stats].values, axis=1)
+
+#                     if debug:
+
+#                         plt.hist(data_baseline, bins=50, alpha=0.5, label='VS')
+#                         plt.hist(data_cond, bins=50, alpha=0.5, label='CHARGE')
+#                         plt.vlines([np.median(data_baseline)], ymin=0, ymax=10, color='r')
+#                         plt.vlines([np.median(data_cond)], ymin=0, ymax=10, color='r')
+#                         plt.legend()
+#                         plt.show()
+
+#                     # stat, pvals_wk[band_i, pair_i] = scipy.stats.wilcoxon(data_baseline, data_cond)
+#                     pvals_perm[band_i, pair_i] = get_permutation_2groups(data_baseline, data_cond, n_surr_fc, 
+#                                                                          mode_grouped='median', mode_generate_surr='percentile', percentile_thresh=[0.5, 99.5])
+
+#             # Apply Benjamini-Hochberg correction
+#             # for band_i in range(len(freq_band_fc_list)):
+#             #     pvals_wk[band_i,:], pvals_adjusted, _, _ = multipletests(pvals_wk[band_i,:], alpha=0.05, method='fdr_bh')
+
+#             if debug:
+
+#                 plt.plot(pvals_perm, label='perm')
+#                 # plt.plot(pvals_wk, label='Benjamini-Hochberg')
+#                 plt.legend()
+#                 plt.show()
+
+#             #### export
+#             fc_stats_dict = {'band' : freq_band_fc_list, 'pair' : pairs_to_compute}
+
+#             xr_fc_stats = xr.DataArray(data=pvals_perm, dims=fc_stats_dict.keys(), coords=fc_stats_dict.values())
+            
+#             os.chdir(os.path.join(path_precompute, 'FC', fc_metric))
+
+#             xr_fc_stats.to_netcdf(f'{fc_metric}_allsujet_STATS_state.nc')
 
 
     
-
-
 
 
 
@@ -557,44 +658,46 @@ def compute_stats_MI_allsujet_time_stretch():
 
 
 
-#stretch = True
-def compute_stats_wpli_ispc_allsujet_time(stretch):
+def compute_stats_wpli_ispc_allsujet_time_stretch():
 
     #fc_metric = 'ISPC'
     for fc_metric in ['ISPC', 'WPLI']:
 
         #### verify computation
-        if stretch:
-
-            if os.path.exists(os.path.join(path_precompute, 'FC', fc_metric, f'{fc_metric}_allsujet_STATS_time_stretch.nc')):
-                print(f'stretch:{stretch} {fc_metric} ALREADY DONE')
-                continue
-
-        else:
-
-            if os.path.exists(os.path.join(path_precompute, 'FC', fc_metric, f'{fc_metric}_allsujet_STATS_time.nc')):
-                print(f'stretch:{stretch} {fc_metric} ALREADY DONE')
-                continue
+        if os.path.exists(os.path.join(path_precompute, 'FC', fc_metric, f'{fc_metric}_allsujet_STATS_time_stretch.nc')):
+            print(f'stretch:{fc_metric} ALREADY DONE')
+            continue
             
-        print(f'COMPUTE stretch:{stretch} {fc_metric}')
+        print(f'COMPUTE stretch:{fc_metric}')
 
         #### load
+        pairs_to_compute = []
+
+        for pair_A in chan_list_eeg_short:
+
+            for pair_B in chan_list_eeg_short:
+
+                if pair_A == pair_B or f'{pair_A}-{pair_B}' in pairs_to_compute or f'{pair_B}-{pair_A}' in pairs_to_compute:
+                    continue
+
+                pairs_to_compute.append(f'{pair_A}-{pair_B}')        
+
+        cond_sel = ['VS', 'CHARGE']
+        fc_allsujet = np.zeros((len(sujet_list_FC), len(pairs_to_compute), len(cond_sel), len(freq_band_fc_list), nrespcycle_FC, stretch_point_FC))
+
         os.chdir(os.path.join(path_precompute, 'FC', fc_metric))
-        if stretch:
-            fc_allsujet = xr.open_dataarray(f'{fc_metric}_allsujet_stretch.nc')
-        else:
-            fc_allsujet = xr.open_dataarray(f'{fc_metric}_allsujet.nc')
-        
-        time_vec = fc_allsujet['time'].values
 
-        if stretch:    
-            time_vec_stats = time_vec
-        else:
-            time_vec_stats = time_vec <= 0
+        for sujet_i, sujet in enumerate(sujet_list_FC):
 
-        pairs_to_compute = fc_allsujet['pair'].values
+            _fc_sujet = xr.open_dataarray(f'{fc_metric}_{sujet}_stretch.nc')
+            fc_allsujet[sujet_i] = _fc_sujet.values
 
-        clusters = np.zeros((len(freq_band_fc_list), pairs_to_compute.size, time_vec.size))
+        fc_allsujet_dict = {'sujet' : sujet_list_FC, 'pair' : pairs_to_compute, 'cond' : cond_sel, 'band' : freq_band_fc_list, 'ntrials' : np.arange(nrespcycle_FC), 'time' : np.arange(stretch_point_FC)}
+
+        xr_fc_allsujet = xr.DataArray(data=fc_allsujet, dims=fc_allsujet_dict.keys(), coords=fc_allsujet_dict.values())
+        xr_fc_allsujet = xr_fc_allsujet.median('ntrials')
+
+        clusters = np.zeros((len(freq_band_fc_list), len(pairs_to_compute), stretch_point_FC))
 
         #band_i, band = 0, freq_band_fc_list[0]
         for band_i, band in enumerate(freq_band_fc_list):
@@ -606,16 +709,19 @@ def compute_stats_wpli_ispc_allsujet_time(stretch):
 
                 print_advancement(pair_i, len(pairs_to_compute))
 
-                data_baseline = fc_allsujet.loc[:, band, 'VS', pair, time_vec_stats].values
-                data_cond = fc_allsujet.loc[:, band, 'CHARGE', pair, time_vec_stats].values
+                data_baseline = xr_fc_allsujet.loc[:, pair, 'VS', band, :].values
+                data_cond = xr_fc_allsujet.loc[:, pair, 'CHARGE', band, :].values
 
-                _cluster = get_permutation_cluster_1d(data_baseline, data_cond, n_surr_fc)
+                data_baseline_rscore = (data_baseline - np.median(data_baseline, axis=1).reshape(-1,1)) * 0.6745 / scipy.stats.median_abs_deviation(data_baseline, axis=1).reshape(-1,1)
+                data_cond_rscore = (data_cond - np.median(data_cond, axis=1).reshape(-1,1)) * 0.6745 / scipy.stats.median_abs_deviation(data_cond, axis=1).reshape(-1,1)
 
-                if not stretch:
-                    _cluster = np.concatenate((_cluster, np.zeros((time_vec.size - time_vec[time_vec_stats].size)).astype('bool')))
+                _cluster = get_permutation_cluster_1d(data_baseline_rscore, data_cond_rscore, n_surr_fc,
+                                                      mode_grouped='median', mode_generate_surr='percentile_time', 
+                                                   mode_select_thresh='percentile_time', size_thresh_alpha=0.01)
 
                 if debug:
 
+                    time_vec = np.arange(stretch_point_FC)
                     min, max = np.concatenate((data_baseline.mean(axis=0), data_cond.mean(axis=0))).min(), np.concatenate((data_baseline.mean(axis=0), data_cond.mean(axis=0))).max()
                     fig, ax = plt.subplots()
                     ax.plot(time_vec, data_baseline.mean(axis=0), label='VS')
@@ -626,16 +732,95 @@ def compute_stats_wpli_ispc_allsujet_time(stretch):
                 clusters[band_i, pair_i, :] = _cluster 
 
         #### export
-        fc_stats_dict = {'band' : freq_band_fc_list, 'pair' : pairs_to_compute, 'time' : time_vec}
+        fc_stats_dict = {'band' : freq_band_fc_list, 'pair' : pairs_to_compute, 'time' : np.arange(stretch_point_FC)}
 
         xr_fc_stats = xr.DataArray(data=clusters, dims=fc_stats_dict.keys(), coords=fc_stats_dict.values())
         
         os.chdir(os.path.join(path_precompute, 'FC', fc_metric))
+        xr_fc_stats.to_netcdf(f'{fc_metric}_allsujet_STATS_time_stretch.nc')
 
-        if stretch:
-            xr_fc_stats.to_netcdf(f'{fc_metric}_allsujet_STATS_time_stretch.nc')
-        else:
-            xr_fc_stats.to_netcdf(f'{fc_metric}_allsujet_STATS_time.nc')
+
+    
+
+# #stretch = True
+# def compute_stats_wpli_ispc_allsujet_time(stretch):
+
+#     #fc_metric = 'ISPC'
+#     for fc_metric in ['ISPC', 'WPLI']:
+
+#         #### verify computation
+#         if stretch:
+
+#             if os.path.exists(os.path.join(path_precompute, 'FC', fc_metric, f'{fc_metric}_allsujet_STATS_time_stretch.nc')):
+#                 print(f'stretch:{stretch} {fc_metric} ALREADY DONE')
+#                 continue
+
+#         else:
+
+#             if os.path.exists(os.path.join(path_precompute, 'FC', fc_metric, f'{fc_metric}_allsujet_STATS_time.nc')):
+#                 print(f'stretch:{stretch} {fc_metric} ALREADY DONE')
+#                 continue
+            
+#         print(f'COMPUTE stretch:{stretch} {fc_metric}')
+
+#         #### load
+#         os.chdir(os.path.join(path_precompute, 'FC', fc_metric))
+#         if stretch:
+#             fc_allsujet = xr.open_dataarray(f'{fc_metric}_allsujet_stretch.nc')
+#         else:
+#             fc_allsujet = xr.open_dataarray(f'{fc_metric}_allsujet.nc')
+        
+#         time_vec = fc_allsujet['time'].values
+
+#         if stretch:    
+#             time_vec_stats = time_vec
+#         else:
+#             time_vec_stats = time_vec <= 0
+
+#         pairs_to_compute = fc_allsujet['pair'].values
+
+#         clusters = np.zeros((len(freq_band_fc_list), pairs_to_compute.size, time_vec.size))
+
+#         #band_i, band = 0, freq_band_fc_list[0]
+#         for band_i, band in enumerate(freq_band_fc_list):
+
+#             print(band)
+
+#             #pair_i, pair = 1, pairs_to_compute[1]
+#             for pair_i, pair in enumerate(pairs_to_compute):
+
+#                 print_advancement(pair_i, len(pairs_to_compute))
+
+#                 data_baseline = fc_allsujet.loc[:, band, 'VS', pair, time_vec_stats].values
+#                 data_cond = fc_allsujet.loc[:, band, 'CHARGE', pair, time_vec_stats].values
+
+#                 _cluster = get_permutation_cluster_1d(data_baseline, data_cond, n_surr_fc)
+
+#                 if not stretch:
+#                     _cluster = np.concatenate((_cluster, np.zeros((time_vec.size - time_vec[time_vec_stats].size)).astype('bool')))
+
+#                 if debug:
+
+#                     min, max = np.concatenate((data_baseline.mean(axis=0), data_cond.mean(axis=0))).min(), np.concatenate((data_baseline.mean(axis=0), data_cond.mean(axis=0))).max()
+#                     fig, ax = plt.subplots()
+#                     ax.plot(time_vec, data_baseline.mean(axis=0), label='VS')
+#                     ax.plot(time_vec, data_cond.mean(axis=0), label='CHARGE')
+#                     ax.fill_between(time_vec, min, max, where=_cluster.astype('int'), alpha=0.3, color='r')
+#                     plt.show()
+
+#                 clusters[band_i, pair_i, :] = _cluster 
+
+#         #### export
+#         fc_stats_dict = {'band' : freq_band_fc_list, 'pair' : pairs_to_compute, 'time' : time_vec}
+
+#         xr_fc_stats = xr.DataArray(data=clusters, dims=fc_stats_dict.keys(), coords=fc_stats_dict.values())
+        
+#         os.chdir(os.path.join(path_precompute, 'FC', fc_metric))
+
+#         if stretch:
+#             xr_fc_stats.to_netcdf(f'{fc_metric}_allsujet_STATS_time_stretch.nc')
+#         else:
+#             xr_fc_stats.to_netcdf(f'{fc_metric}_allsujet_STATS_time.nc')
 
 
     
@@ -659,9 +844,9 @@ if __name__ == '__main__':
     ######## COMPUTE FC ALLSUJET ########
 
     compute_stats_MI_allsujet_state_stretch()
-    compute_stats_ispc_wpli_allsujet_state()
+    compute_stats_ispc_wpli_allsujet_state_stretch()
     compute_stats_MI_allsujet_time_stretch()
-    compute_stats_ispc_wpli_allsujet_state()
+    compute_stats_wpli_ispc_allsujet_time_stretch()
 
     #stretch = False
     for stretch in [True, False]:
