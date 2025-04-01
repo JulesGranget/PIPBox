@@ -1085,7 +1085,7 @@ if __name__== '__main__':
     xr_data = np.zeros((len(sujet_list), 2, 4, len(chan_list)))
     params_list = ['mean', 'sd', 'median', 'mad']
 
-    #sujet = sujet_list[0]
+    #sujet = sujet_list[2]
     for sujet_i, sujet in enumerate(sujet_list):
 
         #cond = cond_list[0]
@@ -1097,6 +1097,11 @@ if __name__== '__main__':
             else:
                 data = np.concatenate((data, load_data_sujet(sujet, cond)), axis=1)
                 data_CSD = np.concatenate((data, load_data_sujet_CSD(sujet, cond)), axis=1)
+
+        if debug:
+
+            plt.plot(data_CSD[0,:])
+            plt.show()
 
         xr_data[sujet_i, 0, 0, :], xr_data[sujet_i, 0, 1, :] = data.mean(axis=1), data.std(axis=1) 
         xr_data[sujet_i, 0, 2, :], xr_data[sujet_i, 0, 3, :] = np.median(data, axis=1), scipy.stats.median_abs_deviation(data, axis=1)

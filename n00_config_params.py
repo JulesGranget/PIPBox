@@ -98,7 +98,7 @@ PC_OS = platform.system()
 PC_ID = socket.gethostname()
 init_workdir = os.getcwd()
 
-if PC_ID == 'LAPTOP-EI7OSP7K':
+if PC_ID == 'jules_pc':
 
     try: 
         os.chdir('N:\\')
@@ -109,9 +109,9 @@ if PC_ID == 'LAPTOP-EI7OSP7K':
     if teleworking:
 
         PC_working = 'Jules_VPN'
-        path_main_workdir = 'Z:\\Projets\\PPI_Jules\\Scripts'
-        path_general = 'Z:\\Projets\\PPI_Jules'
-        path_memmap = 'Z:\\Projets\\PPI_Jules\\memmap'
+        path_main_workdir = 'Z:\\cmo\\Projets\\PPI_Jules\\Scripts'
+        path_general = 'Z:\\cmo\\Projets\\PPI_Jules'
+        path_memmap = 'Z:\\cmo\\Projets\\PPI_Jules\\memmap'
         n_core = 4
 
     else:
@@ -321,7 +321,14 @@ nfrex_fc = 50
 tf_stats_percentile_cluster_manual_perm = 80
 erp_time_cluster_thresh = 50 #ms
 
+stat_design='within'
+mode_grouped='median'
+mode_generate_surr_2g='percentile'
+percentile_thresh=[0.5, 99.5]
 
+mode_generate_surr_1d='percentile_time'
+mode_select_thresh_1d='percentile_time'
+size_thresh_alpha=0.05
 
 
 
@@ -349,9 +356,10 @@ tf_stats_percentile_cluster_size_thresh = 75
 ########################
 
 nrespcycle_FC = 100
-stretch_point_FC = 250
+stretch_point_FC = 240
 ncycle_FC = 10
-MI_window_size = int(1*srate)
+fc_win_overlap = 0.5
+MI_window_size = int(3*srate)
 freq_band_fc_list = ['theta', 'alpha', 'gamma']
 freq_band_fc = {'theta' : [4,8], 'alpha' : [8,12], 'gamma' : [80,150]}
 n_surr_fc = 1000

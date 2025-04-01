@@ -258,126 +258,6 @@ def compute_ERP_stretch():
 
 
 
-################################################
-######## STATS ANALYSIS FUNCTIONS ########
-################################################
-
-
-# data_baseline, data_cond = data_baseline_chan, data_cond_chan
-def get_permutation_cluster_1d(data_baseline, data_cond, n_surr):
-
-    if debug:
-
-        colors = {'NM' : 'r', 'PH' : 'b', 'IL' : 'k', 'DL' : 'g'}
-        for trial_i in range(data_baseline.shape[0]):
-            plt.plot(data_baseline[trial_i,:], color=colors[sujet_list[trial_i][2:4]], label=sujet_list[trial_i][2:4])
-        plt.legend()
-        plt.show()
-
-        colors = {'NM' : 'r', 'PH' : 'b', 'IL' : 'k', 'DL' : 'g'}
-        for trial_i in range(data_cond.shape[0]):
-            plt.plot(data_cond[trial_i,:], color=colors[sujet_list[trial_i][2:4]], label=sujet_list[trial_i][2:4])
-        plt.legend()
-        plt.show()
-
-    n_trials_baselines = data_baseline.shape[0]
-    n_trials_cond = data_cond.shape[0]
-    n_trials_min = np.array([n_trials_baselines, n_trials_cond]).min()
-
-    data_shuffle = np.concatenate((data_baseline, data_cond), axis=0)
-    n_trial_tot = data_shuffle.shape[0]
-
-    test_vec_shuffle = np.zeros((n_surr, data_cond.shape[-1]))
-
-    pixel_based_distrib = np.zeros((n_surr, 2))
-
-    #surr_i = 0
-    for surr_i in range(n_surr):
-
-        #### shuffle
-        random_sel = np.random.choice(n_trial_tot, size=n_trial_tot, replace=False)
-        data_shuffle_baseline = data_shuffle[random_sel[:n_trials_min]]
-        data_shuffle_cond = data_shuffle[random_sel[n_trials_min:n_trials_min*2]]
-
-        if debug:
-            plt.plot(np.mean(data_shuffle_baseline, axis=0), label='baseline')
-            plt.plot(np.mean(data_shuffle_cond, axis=0), label='cond')
-            plt.legend()
-            plt.show()
-
-            plt.plot(test_vec_shuffle[surr_i,:], label='shuffle')
-            plt.hlines(0.05, xmin=0, xmax=data_shuffle.shape[-1], color='r')
-            plt.legend()
-            plt.show()
-
-        #### extract max min thresh
-        _min, _max = np.median(data_shuffle_cond, axis=0).min(), np.median(data_shuffle_cond, axis=0).max()
-        # _min, _max = np.percentile(np.median(data_shuffle_cond, axis=0), 1), np.percentile(np.median(data_shuffle_cond, axis=0), 99)
-        
-        pixel_based_distrib[surr_i, 0] = _min
-        pixel_based_distrib[surr_i, 1] = _max
-
-    min, max = np.median(pixel_based_distrib[:,0]), np.median(pixel_based_distrib[:,1]) 
-    # min, max = np.percentile(pixel_based_distrib[:,0], 50), np.percentile(pixel_based_distrib[:,1], 50)
-
-    if debug:
-        count, _, fig = plt.hist(pixel_based_distrib[:,0], bins=50)
-        count, _, fig = plt.hist(pixel_based_distrib[:,1], bins=50)
-        plt.vlines([np.median(pixel_based_distrib[:,0]), np.median(pixel_based_distrib[:,1])], ymin=count.min(), ymax=count.max(), color='r')
-        plt.show()
-
-        plt.plot(np.mean(data_baseline, axis=0), label='baseline')
-        plt.plot(np.mean(data_cond, axis=0), label='cond')
-        plt.hlines(min, xmin=0, xmax=data_shuffle.shape[-1], color='r', label='min')
-        plt.hlines(max, xmin=0, xmax=data_shuffle.shape[-1], color='r', label='max')
-        plt.legend()
-        plt.show()
-
-    #### thresh data
-    data_thresh = np.mean(data_cond, axis=0).copy()
-
-    _mask = np.logical_or(data_thresh < min, data_thresh > max)
-    _mask = _mask*1
-
-    if debug:
-
-        plt.plot(_mask)
-        plt.show()
-
-    #### thresh cluster
-    mask = np.zeros(data_cond.shape[-1])
-
-    _mask[0], _mask[-1] = 0, 0 # to ensure np.diff detection
-
-    if _mask.sum() != 0:
- 
-        start, stop = np.where(np.diff(_mask) != 0)[0][::2], np.where(np.diff(_mask) != 0)[0][1::2] 
-        
-        sizes = stop - start
-        min_size = np.percentile(sizes, tf_stats_percentile_cluster_manual_perm)
-        if min_size < erp_time_cluster_thresh:
-            min_size = erp_time_cluster_thresh
-        cluster_signi = sizes >= min_size
-
-        mask = np.zeros(data_cond.shape[-1])
-
-        for cluster_i, cluster_p in enumerate(cluster_signi):
-
-            if cluster_p:
-
-                mask[start[cluster_i]:stop[cluster_i]] = 1
-
-    mask = mask.astype('bool')
-
-    if debug:
-
-        plt.plot(mask)
-        plt.show()
-
-    return mask
-
-
-
 
 
 ########################
@@ -432,7 +312,9 @@ def get_cluster_stats_manual_prem_allsujet(stretch=False):
             data_baseline = xr_data.loc[:, 'VS', nchan, time_vec_stats].values
             data_cond = xr_data.loc[:, 'CHARGE', nchan, time_vec_stats].values
             
-            mask = get_permutation_cluster_1d(data_baseline, data_cond, ERP_n_surrogate)
+            mask = get_permutation_cluster_1d(data_baseline, data_cond, ERP_n_surrogate, stat_design=stat_design, mode_grouped=mode_grouped, 
+                                              mode_generate_surr=mode_generate_surr_1d, mode_select_thresh=mode_select_thresh_1d, percentile_thresh=percentile_thresh, 
+                                              size_thresh_alpha=size_thresh_alpha)
 
             if debug:
 
@@ -579,7 +461,9 @@ def get_cluster_stats_manual_prem_subject_wise(stretch=False):
                 data_baseline = erp_data[nchan]['VS'][:,time_vec_stats]
                 data_cond = erp_data[nchan]['CHARGE'][:,time_vec_stats]
 
-                mask = get_permutation_cluster_1d(data_baseline, data_cond, ERP_n_surrogate)
+                mask = get_permutation_cluster_1d(data_baseline, data_cond, ERP_n_surrogate, stat_design=stat_design, mode_grouped=mode_grouped, 
+                                              mode_generate_surr=mode_generate_surr_1d, mode_select_thresh=mode_select_thresh_1d, percentile_thresh=percentile_thresh, 
+                                              size_thresh_alpha=size_thresh_alpha)
 
                 if stretch:
                     xr_data[sujet_i, chan_i, :] = mask
@@ -713,271 +597,6 @@ def get_stats_topoplots(baseline_values, cond_values, chan_list_eeg):
 
 
 
-def get_permutation_cluster_1d_stretch_one_cond(data_cond, x, respfeatures_stretch, n_surr):
-
-    cycles_length = respfeatures_stretch[['inspi_index', 'expi_index', 'next_inspi_index']].diff(axis=1)[['expi_index', 'next_inspi_index']].values
-
-    n_trials_cond = cycles_length.shape[0]
-
-    respfeatures_surr = respfeatures_stretch.copy()
-    start_inspi_init = respfeatures_stretch['inspi_index'].values[0]
-
-    surr_cycles = np.zeros((n_trials_cond, 3), dtype='int')
-    surr_cycles[0,0] = start_inspi_init 
-    surr_erp_data = np.zeros((n_trials_cond, data_cond.shape[-1]))
-    surr_erp_data_median = np.zeros((n_surr, data_cond.shape[-1]))
-
-    #surr_i = 0
-    for surr_i in range(n_surr):
-
-        #### shuffle
-        shuffle = np.random.choice(np.arange(n_trials_cond), size=n_trials_cond, replace=False)
-        cycles_length_shuffled = cycles_length[shuffle,:]
-
-        for cycle_i in range(cycles_length_shuffled.shape[0]):
-
-            if cycle_i == n_trials_cond-1:
-
-                surr_cycles[cycle_i,1] = surr_cycles[cycle_i,0] + cycles_length_shuffled[cycle_i,0]
-                surr_cycles[cycle_i,2] = surr_cycles[cycle_i,1] + cycles_length_shuffled[cycle_i,1]
-
-            else:
-
-                surr_cycles[cycle_i,1] = surr_cycles[cycle_i,0] + cycles_length_shuffled[cycle_i,0]
-                surr_cycles[cycle_i,2] = surr_cycles[cycle_i,1] + cycles_length_shuffled[cycle_i,1]
-                surr_cycles[cycle_i+1,0] = surr_cycles[cycle_i,2]
-
-
-        respfeatures_surr.iloc[:,1], respfeatures_surr.iloc[:,2], respfeatures_surr.iloc[:,3] = surr_cycles[:,0], surr_cycles[:,1], surr_cycles[:,2]
-        respfeatures_surr.iloc[:,4], respfeatures_surr.iloc[:,5], respfeatures_surr.iloc[:,6] = respfeatures_surr.iloc[:,1]/srate, respfeatures_surr.iloc[:,2]/srate, respfeatures_surr.iloc[:,3]/srate
-
-        surr_erp_data, mean_inspi_ratio = stretch_data(respfeatures_surr, stretch_point_ERP, x, srate)
-
-        if debug:
-            for i in range(n_trials_cond):
-                plt.plot(surr_erp_data[i,:], alpha=0.4)
-            plt.plot(surr_erp_data.mean(axis=0), color='r')
-            plt.show()
-
-            plt.plot(data_cond.mean(axis=0), label='cond')
-            plt.plot(surr_erp_data.mean(axis=0), label='surr')
-            plt.legend()
-            plt.show()
-            
-        #### inverse to have inspi on the right and expi on the left
-        # surr_erp_data = np.hstack((surr_erp_data[:,int(stretch_point_ERP/2):], surr_erp_data[:,:int(stretch_point_ERP/2)]))
-        
-        #### export data
-        surr_erp_data_median[surr_i,:] = np.mean(surr_erp_data, axis=0)
-
-        if debug:
-
-            plt.plot(np.mean(surr_erp_data, axis=0))
-            plt.show()
-
-    # min, max = np.median(pixel_based_distrib[:,0,:], axis=0), np.median(pixel_based_distrib[:,1,:], axis=0) 
-    min, max = np.percentile(surr_erp_data_median, 1, axis=0), np.percentile(surr_erp_data_median, 99, axis=0)
-
-    if debug:
-        plt.plot(min, color='r')
-        plt.plot(max, color='r')
-        plt.plot(np.mean(data_cond, axis=0), color='g', label='data')
-        plt.plot(np.mean(surr_erp_data_median, axis=0), color='b', label='surr')
-        plt.legend()
-        plt.show()
-
-        for i in range(400):
-
-            plt.plot(surr_erp_data_median[i,:], alpha=0.3)
-
-        plt.plot(data_cond.mean(axis=0), color='r', label='cond')
-        plt.show()
-
-    #### thresh data
-    data_thresh = np.mean(data_cond, axis=0).copy()
-
-    _mask = np.logical_or(data_thresh < min, data_thresh > max)
-    _mask = _mask*1
-
-    if debug:
-
-        plt.plot(_mask)
-        plt.show()
-
-    #### thresh cluster
-    mask = np.zeros(data_cond.shape[-1])
-
-    _mask[0], _mask[-1] = 0, 0 # to ensure np.diff detection
-
-    if _mask.sum() != 0:
- 
-        start, stop = np.where(np.diff(_mask) != 0)[0][::2], np.where(np.diff(_mask) != 0)[0][1::2] 
-        
-        sizes = stop - start
-        med, mad = np.median(sizes), int(np.median(np.abs(np.median(sizes) - sizes)) / 0.6744897501960817)
-        min_size = med + mad
-        
-        if min_size < erp_time_cluster_thresh:
-            min_size = erp_time_cluster_thresh
-        cluster_signi = sizes >= min_size
-
-        mask = np.zeros(data_cond.shape[-1])
-
-        for cluster_i, cluster_p in enumerate(cluster_signi):
-
-            if cluster_p:
-
-                mask[start[cluster_i]:stop[cluster_i]] = 1
-
-    mask = mask.astype('bool')
-
-    if debug:
-
-        plt.plot(mask)
-        plt.show()
-
-    return mask
-
-
-
-
-
-# data_baseline, data_cond = data_baseline_chan, data_cond_chan
-def get_permutation_cluster_1d_one_cond(data_cond, x, n_surr):
-
-    n_trials_cond = data_cond.shape[0]
-
-    surr_erp_data = np.zeros((n_trials_cond*2, data_cond.shape[-1]))
-    surr_erp_data_median = np.zeros((n_surr, data_cond.shape[-1]))
-
-    pixel_based_distrib = np.zeros((n_surr, 2, data_cond.shape[-1]))
-
-    #surr_i = 0
-    for surr_i in range(n_surr):
-
-        #### shuffle
-        seeds = np.random.randint(low=0, high=x.size-data_cond.shape[-1], size=n_trials_cond*2)
-
-        if debug:
-
-            plt.plot(x)
-            plt.vlines(seeds, ymin=x.min(), ymax=x.max(), color='r')
-            plt.show()
-
-        for seed_i, seed in enumerate(seeds):
-            t_start = seed
-            t_stop = seed+data_cond.shape[-1]
-            x_chunk = x[t_start:t_stop]
-
-            surr_erp_data[seed_i,:] = (x_chunk - x_chunk.mean()) / x_chunk.std()
-
-        surr_erp_data_clean = surr_erp_data[((surr_erp_data <= -3) | (surr_erp_data >= 3)).sum(axis=1) == 0]
-        surr_erp_data_clean = surr_erp_data_clean[:n_trials_cond,:]
-
-        if debug:
-            for i in range(n_trials_cond):
-                plt.plot(surr_erp_data_clean[i,:])
-            plt.show()
-
-            plt.plot(data_cond.mean(axis=0), label='cond')
-            plt.plot(surr_erp_data_clean.mean(axis=0), label='surr')
-            plt.legend()
-            plt.show()
-            
-        surr_erp_data_median[surr_i,:] = np.mean(surr_erp_data_clean, axis=0)
-
-    # min, max = np.median(pixel_based_distrib[:,0,:], axis=0), np.median(pixel_based_distrib[:,1,:], axis=0) 
-    min, max = np.percentile(surr_erp_data_median, 1, axis=0), np.percentile(surr_erp_data_median, 99, axis=0)
-
-    if debug:
-        plt.plot(min, color='r')
-        plt.plot(max, color='r')
-        plt.plot(np.mean(data_cond, axis=0), color='g')
-        plt.plot(np.mean(surr_erp_data_median, axis=0), color='g')
-        plt.show()
-        
-        count, _, fig = plt.hist(pixel_based_distrib[:,0], bins=50)
-        count, _, fig = plt.hist(pixel_based_distrib[:,1], bins=50)
-        plt.vlines([np.median(pixel_based_distrib[:,0]), np.median(pixel_based_distrib[:,1])], ymin=count.min(), ymax=count.max(), color='r')
-        plt.show()
-
-        plt.plot(np.mean(data_cond, axis=0), label='cond')
-        plt.hlines(min, xmin=0, xmax=data_cond.shape[-1], color='r', label='min')
-        plt.hlines(max, xmin=0, xmax=data_cond.shape[-1], color='r', label='max')
-        plt.legend()
-        plt.show()
-
-        for i in range(400):
-
-            seeds = np.random.randint(low=0, high=x.size-data_cond.shape[-1], size=n_trials_cond*2)
-
-            for seed_i, seed in enumerate(seeds):
-                t_start = seed
-                t_stop = seed+data_cond.shape[-1]
-                x_chunk = x[t_start:t_stop]
-
-                surr_erp_data[seed_i,:] = (x_chunk - x_chunk.mean()) / x_chunk.std()
-
-            surr_erp_data_clean = surr_erp_data[((surr_erp_data <= -3) | (surr_erp_data >= 3)).sum(axis=1) == 0]
-            surr_erp_data_clean = surr_erp_data_clean[:n_trials_cond,:]
-
-            plt.plot(surr_erp_data_clean.mean(axis=0), alpha=0.3)
-
-        plt.plot(data_cond.mean(axis=0), color='r', label='cond')
-        plt.show()
-
-    #### thresh data
-    data_thresh = np.mean(data_cond, axis=0).copy()
-
-    _mask = np.logical_or(data_thresh < min, data_thresh > max)
-    _mask = _mask*1
-
-    if debug:
-
-        plt.plot(_mask)
-        plt.show()
-
-    #### thresh cluster
-    mask = np.zeros(data_cond.shape[-1])
-
-    _mask[0], _mask[-1] = 0, 0 # to ensure np.diff detection
-
-    if _mask.sum() != 0:
- 
-        start, stop = np.where(np.diff(_mask) != 0)[0][::2], np.where(np.diff(_mask) != 0)[0][1::2] 
-        
-        sizes = stop - start
-        med, mad = np.median(sizes), int(np.median(np.abs(np.median(sizes) - sizes)) / 0.6744897501960817)
-        min_size = med + mad
-        
-        if min_size < erp_time_cluster_thresh:
-            min_size = erp_time_cluster_thresh
-        cluster_signi = sizes >= min_size
-
-        mask = np.zeros(data_cond.shape[-1])
-
-        for cluster_i, cluster_p in enumerate(cluster_signi):
-
-            if cluster_p:
-
-                mask[start[cluster_i]:stop[cluster_i]] = 1
-
-    mask = mask.astype('bool')
-
-    if debug:
-
-        plt.plot(mask)
-        plt.show()
-
-    return mask
-
-
-
-
-
-
-
-
 
 
 
@@ -1073,7 +692,9 @@ def compute_topoplot_stats_allsujet_perm(xr_data, perm_type):
 
                 else:
 
-                    perm_vec = get_permutation_cluster_1d(data_baseline_chan, data_cond_chan, ERP_n_surrogate)
+                    perm_vec = get_permutation_cluster_1d(data_baseline_chan, data_cond_chan, ERP_n_surrogate, stat_design=stat_design, mode_grouped=mode_grouped, 
+                                              mode_generate_surr=mode_generate_surr_1d, mode_select_thresh=mode_select_thresh_1d, percentile_thresh=percentile_thresh, 
+                                              size_thresh_alpha=size_thresh_alpha)
 
                     if perm_vec.sum() >= int(erp_time_cluster_thresh*1e-3*srate): 
                         mask_signi[chan_i] = True 
@@ -1169,7 +790,9 @@ def compute_topoplot_stats_allsujet_perm(xr_data, perm_type):
 
                 else:
 
-                    perm_vec = get_permutation_cluster_1d(data_baseline_chan, data_cond_chan, ERP_n_surrogate)
+                    perm_vec = get_permutation_cluster_1d(data_baseline_chan, data_cond_chan, ERP_n_surrogate, stat_design=stat_design, mode_grouped=mode_grouped, 
+                                              mode_generate_surr=mode_generate_surr_1d, mode_select_thresh=mode_select_thresh_1d, percentile_thresh=percentile_thresh, 
+                                              size_thresh_alpha=size_thresh_alpha)
 
                     if perm_vec.sum() >= int(erp_time_cluster_thresh*1e-3*srate): 
                         mask_signi[chan_i] = True 

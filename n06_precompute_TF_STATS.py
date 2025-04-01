@@ -60,7 +60,9 @@ def precompute_tf_STATS_allsujet(chan):
     ######## COMPUTE SURROGATES & STATS ########
 
     print('COMPUTE SURROGATES', flush=True)
-    tf_stats = get_permutation_cluster_2d(tf_stretch_baseline_allsujet, tf_stretch_cond_allsujet, n_surrogates_tf)
+    tf_stats = get_permutation_cluster_2d(tf_stretch_baseline_allsujet, tf_stretch_cond_allsujet, n_surrogates_tf, stat_design=stat_design, 
+                                mode_grouped=mode_grouped, mode_generate_surr=mode_generate_surr_1d, mode_select_thresh=mode_select_thresh_1d, 
+                                percentile_thresh=percentile_thresh, size_thresh_alpha=size_thresh_alpha)
     
     ######## SAVE ########
 
