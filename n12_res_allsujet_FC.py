@@ -142,18 +142,22 @@ def plot_allsujet_FC_time_stretch():
         #### identify min max for allsujet
 
         vlim_band = {}
+        vlim_band_whole = {}
 
         for band in freq_band_fc_list:
 
             vlim_band[band] = {}
+            vlim_band_whole[band] = {}
         
             #pair_i, pair = 0, pairs_to_compute[0]
             for pair_i, pair in enumerate(pairs_to_compute):
 
                 if fc_metric == 'MI':
                     vlim_band[band][pair] = {'min' : fc_allsujet_rscore.loc[:, pair, :].values.min(), 'max' : fc_allsujet_rscore.loc[:, pair, :].values.max()}
+                    vlim_band_whole[band][pair] = {'min' : fc_allsujet.loc[:, pair, :].values.min(), 'max' : fc_allsujet.loc[:, pair, :].values.max()}
                 else:
                     vlim_band[band][pair] = {'min' : fc_allsujet_rscore.loc[:, pair, band, :].values.min(), 'max' : fc_allsujet_rscore.loc[:, pair, band, :].values.max()}                        
+                    vlim_band_whole[band][pair] = {'min' : fc_allsujet.loc[:, pair, band, :].values.min(), 'max' : fc_allsujet.loc[:, pair, band, :].values.max()}                        
 
         if debug:
 
@@ -215,6 +219,56 @@ def plot_allsujet_FC_time_stretch():
                 else:
 
                     fig.savefig(f'{band}_stretch_{pair}.jpeg', dpi=150)
+
+                fig.clf()
+                plt.close('all')
+                gc.collect()
+
+                fig, ax = plt.subplots()
+
+                fig.set_figheight(5)
+                fig.set_figwidth(8)
+
+                plt.suptitle(f'stretch WHOLE {pair} nsujet:{n_sujet}')
+
+                ax.set_ylim(vlim_band_whole[band][pair]['min'], vlim_band_whole[band][pair]['max'])
+
+                for sujet_i, sujet in enumerate(sujet_list_FC):
+
+                    if fc_metric == 'MI':
+                        ax.plot(time_vec, fc_allsujet.loc[sujet, pair], alpha=0.2)
+                    else:
+                        ax.plot(time_vec, fc_allsujet.loc[sujet, pair, band], alpha=0.2)
+
+                if fc_metric == 'MI':
+                    ax.plot(time_vec, fc_allsujet.loc[:, pair].median('sujet'), color='r')
+                else:
+                    ax.plot(time_vec, fc_allsujet.loc[:, pair, band].median('sujet'), color='r')
+
+                if fc_metric == 'MI':
+                    _clusters = clusters.loc[pair, :].values
+                else:
+                    _clusters = clusters.loc[band, pair, :].values
+                    
+                ax.fill_between(time_vec, vlim_band_whole[band][pair]['min'], vlim_band_whole[band][pair]['max'], where=_clusters.astype('int'), alpha=0.3, color='r')
+
+                ax.vlines(stretch_point_FC/2, ymin=vlim_band_whole[band][pair]['min'], ymax=vlim_band_whole[band][pair]['max'], colors='g')  
+
+                fig.tight_layout()
+                plt.legend()
+
+                # plt.show()
+
+                #### save
+                os.chdir(os.path.join(path_results, 'FC', fc_metric, 'allpairs'))
+
+                if fc_metric == 'MI':
+
+                    fig.savefig(f'WHOLE_stretch_{pair}.jpeg', dpi=150)
+
+                else:
+
+                    fig.savefig(f'WHOLE_{band}_stretch_{pair}.jpeg', dpi=150)
 
                 fig.clf()
                 plt.close('all')
