@@ -214,129 +214,35 @@ def generate_folder_structure(sujet):
 ################################################
 
 
-def sync_folders__push_to_mnt(clusterexecution=True):
+def sync_folders__push_to_mnt():
 
     #### need to be exectuted outside of cluster to work
     folder_to_push_to = {path_data : os.path.join(path_mntdata, 'Data'), path_precompute : os.path.join(path_mntdata, 'Analyses', 'precompute'), 
                          path_prep : os.path.join(path_mntdata, 'Analyses', 'preprocessing'), path_main_workdir : os.path.join(path_mntdata, 'Scripts'),
                          path_slurm : os.path.join(path_mntdata, 'Scripts_slurm'), 
                          os.path.join(path_results, 'RESPI', 'respfeatures') : os.path.join(path_mntdata, 'Analyses', 'results', 'RESPI', 'respfeatures')}
-
-    if clusterexecution:
             
-        #### We push from A to B
-        for folder_local, folder_remote in folder_to_push_to.items():
+    #### We push from A to B
+    for folder_local, folder_remote in folder_to_push_to.items():
 
-            subprocess.run([f"rsync -avz --delete -v {folder_local}/ {folder_remote}/"], shell=True)
-
-    else:
-
-        hostname_local = '10.69.168.93'
-        port = 22
-        username = 'jules.granget'
-
-        # Create an SSH client
-        ssh_client = paramiko.SSHClient()
-        
-        # Automatically add the server's SSH key (if not already known)
-        ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-
-        # Prompt for the SSH password
-        password = getpass.getpass(prompt="Enter your SSH password: ")
-        
-        try:
-            # Connect to the remote machine
-            print(f"Connecting to {hostname_local}...")
-            ssh_client.connect(hostname_local, port=port, username=username, password=password)
-            print("Connection established.")
-
-            #### test
-            if debug:
-
-                #### A to B
-                sync_from_remote_to_local = f"rsync -avz --delete -v {os.path.join(path_general, 'test')}/ {os.path.join(path_mntdata, 'test')}/"
-                stdin, stdout, stderr = ssh_client.exec_command(sync_from_remote_to_local)
-                output = stdout.read().decode()
-                print(output)
-
-                #### B to A
-                sync_from_remote_to_local = f"rsync -avz --delete -v {os.path.join(path_mntdata, 'test')}/ {os.path.join(path_general, 'test')}/"
-                stdin, stdout, stderr = ssh_client.exec_command(sync_from_remote_to_local)
-                output = stdout.read().decode()
-                print(output)
-
-            #### We push from A to B
-            for folder_local, folder_remote in folder_to_push_to.items():
-
-                sync_from_remote_to_local = f"rsync -avz --delete -v {folder_local}/ {folder_remote}/"
-                stdin, stdout, stderr = ssh_client.exec_command(sync_from_remote_to_local)
-                output = stdout.read().decode()
-                print(output)
-
-        except:
-            print(f"An error occurred")
+        subprocess.run([f"rsync -avz --delete -v {folder_local}/ {folder_remote}/"], shell=True)
 
 
 
-def sync_folders__push_to_crnldata(clusterexecution=True):
+
+
+def sync_folders__push_to_crnldata():
 
     #### dont push scripts from mnt to crnldata
     folder_to_push_to = {path_data : os.path.join(path_mntdata, 'Data'), path_precompute : os.path.join(path_mntdata, 'Analyses', 'precompute'), 
                          path_prep : os.path.join(path_mntdata, 'Analyses', 'preprocessing'), path_slurm : os.path.join(path_mntdata, 'Scripts_slurm')}
-
-    if clusterexecution:
             
-        #### We push from A to B
-        for folder_local, folder_remote in folder_to_push_to.items():
+    #### We push from A to B
+    for folder_local, folder_remote in folder_to_push_to.items():
 
-            subprocess.run([f"rsync -avz --delete -v {folder_remote}/ {folder_local}/"], shell=True)
+        subprocess.run([f"rsync -avz --delete -v {folder_remote}/ {folder_local}/"], shell=True)
 
-    else:
-
-        hostname_local = '10.69.168.93'
-        port = 22
-        username = 'jules.granget'
-
-        # Create an SSH client
-        ssh_client = paramiko.SSHClient()
-        
-        # Automatically add the server's SSH key (if not already known)
-        ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-
-        # Prompt for the SSH password
-        password = getpass.getpass(prompt="Enter your SSH password: ")
-        
-        try:
-            # Connect to the remote machine
-            print(f"Connecting to {hostname_local}...")
-            ssh_client.connect(hostname_local, port=port, username=username, password=password)
-            print("Connection established.")
-
-            #### test
-            if debug:
-
-                #### A to B
-                sync_from_remote_to_local = f"rsync -avz --delete -v {os.path.join(path_general, 'test')}/ {os.path.join(path_mntdata, 'test')}/"
-                stdin, stdout, stderr = ssh_client.exec_command(sync_from_remote_to_local)
-                output = stdout.read().decode()
-                print(output)
-
-                #### B to A
-                sync_from_remote_to_local = f"rsync -avz --delete -v {os.path.join(path_mntdata, 'test')}/ {os.path.join(path_general, 'test')}/"
-                stdin, stdout, stderr = ssh_client.exec_command(sync_from_remote_to_local)
-                output = stdout.read().decode()
-                print(output)
-
-            #### We push from A to B
-            for folder_local, folder_remote in folder_to_push_to.items():
-
-                sync_from_remote_to_local = f"rsync -avz --delete -v {folder_remote}/ {folder_local}/"
-                stdin, stdout, stderr = ssh_client.exec_command(sync_from_remote_to_local)
-                output = stdout.read().decode()
-                print(output)
-        
-        except:
-            print(f"An error occurred")
+    
 
 
 
@@ -417,6 +323,8 @@ def write_script_slurm(name_script, name_function, params_one_script, n_core, me
 
     return slurm_bash_script_name
 
+
+
 def execute_script_slurm(slurm_bash_script_name):
 
     #### execute bash
@@ -425,7 +333,8 @@ def execute_script_slurm(slurm_bash_script_name):
     subprocess.run([f'sbatch {slurm_bash_script_name}'], shell=True) 
 
 
-#name_script, name_function, params = 'n05_precompute_Cxy', 'precompute_surrogates_coh', [sujet]
+
+#name_script, name_function, params = 'n07_precompute_FC', 'get_MI_sujet_stretch', [[sujet] for sujet in sujet_list_FC]
 def execute_function_in_slurm_bash(name_script, name_function, params, n_core=15, mem='15G'):
 
     script_path = os.getcwd()

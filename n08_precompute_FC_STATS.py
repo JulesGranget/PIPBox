@@ -102,43 +102,53 @@ def compute_stats_MI_allsujet_state_stretch():
     print('compute stats')
 
     # pvals_wk = np.zeros((len(phase_list), pairs_to_compute.size))
-    pvals_perm = np.zeros((len(phase_list), len(pairs_to_compute)))
+    pvals_perm = np.zeros((2, len(phase_list), len(pairs_to_compute)))
+    pvals_perm_mne = np.zeros((2, len(phase_list), len(pairs_to_compute)))
 
-    #phase_i, phase = 1, phase_list[1]
-    for phase_i, phase in enumerate(phase_list):
+    for data_type_i, data_type in enumerate(['raw', 'rscore']):
 
-        print(phase)
+        #phase_i, phase = 1, phase_list[1]
+        for phase_i, phase in enumerate(phase_list):
 
-        #pair_i, pair = 0, pairs_to_compute[0]
-        for pair_i, pair in enumerate(pairs_to_compute):
+            print(phase)
 
-            # print_advancement(pair_i, len(pairs_to_compute))
+            #pair_i, pair = 0, pairs_to_compute[0]
+            for pair_i, pair in enumerate(pairs_to_compute):
 
-            if phase == 'whole':
-                data_baseline = np.median(shifted_xr_MI_allsujet.loc[:, 'VS', pair, phase_vec[phase]].values, axis=-1)
-                data_cond = np.median(shifted_xr_MI_allsujet.loc[:, 'CHARGE', pair, phase_vec[phase]].values, axis=-1)
-            else:
-                data_baseline = np.median(shifted_xr_MI_allsujet_rscore.loc[:, 'VS', pair, phase_vec[phase]].values, axis=-1)
-                data_cond = np.median(shifted_xr_MI_allsujet_rscore.loc[:, 'CHARGE', pair, phase_vec[phase]].values, axis=-1)
+                # print_advancement(pair_i, len(pairs_to_compute))
 
-            if debug:
-            
-                plt.hist(data_baseline, alpha=0.5)
-                plt.hist(data_cond, alpha=0.5)
-                plt.show()
+                if data_type == 'raw':
+                    data_baseline = np.median(shifted_xr_MI_allsujet.loc[:, 'VS', pair, phase_vec[phase]].values, axis=-1)
+                    data_cond = np.median(shifted_xr_MI_allsujet.loc[:, 'CHARGE', pair, phase_vec[phase]].values, axis=-1)
+                else:
+                    data_baseline = np.median(shifted_xr_MI_allsujet_rscore.loc[:, 'VS', pair, phase_vec[phase]].values, axis=-1)
+                    data_cond = np.median(shifted_xr_MI_allsujet_rscore.loc[:, 'CHARGE', pair, phase_vec[phase]].values, axis=-1)
 
-            # stat, pvals_wk[phase_i, pair_i] = scipy.stats.wilcoxon(data_baseline, data_cond)
-            pvals_perm[phase_i, pair_i] = get_permutation_2groups(data_baseline, data_cond, n_surr_fc, stat_design=stat_design, mode_grouped=mode_grouped, 
-                                                                  mode_generate_surr=mode_generate_surr_2g, percentile_thresh=percentile_thresh)
+                if debug:
+                
+                    plt.hist(data_baseline, alpha=0.5)
+                    plt.hist(data_cond, alpha=0.5)
+                    plt.show()
 
-            if debug:
+                # stat, pvals_wk[phase_i, pair_i] = scipy.stats.wilcoxon(data_baseline, data_cond)
+                pvals_perm[data_type_i, phase_i, pair_i] = get_permutation_2groups(data_baseline, data_cond, n_surr_fc, stat_design=stat_design, mode_grouped=mode_grouped, 
+                                                                    mode_generate_surr=mode_generate_surr_2g, percentile_thresh=percentile_thresh)
+                
+                T_obs, clusters, cluster_p_values, H0 = mne.stats.permutation_cluster_1samp_test(data_cond - data_baseline, n_permutations=n_surr_fc, threshold=None,
+                                                                    tail=1, out_type="mask", verbose=False)
+                if cluster_p_values.size == 0:
+                    pvals_perm_mne[data_type_i, phase_i, pair_i] = False
+                else:
+                    pvals_perm_mne[data_type_i, phase_i, pair_i] = True
 
-                plt.hist(data_baseline, bins=50, alpha=0.5, label='VS')
-                plt.hist(data_cond, bins=50, alpha=0.5, label='CHARGE')
-                plt.vlines([np.median(data_baseline)], ymin=0, ymax=10, color='r')
-                plt.vlines([np.median(data_cond)], ymin=0, ymax=10, color='r')
-                plt.legend()
-                plt.show()
+                if debug:
+
+                    plt.hist(data_baseline, bins=50, alpha=0.5, label='VS')
+                    plt.hist(data_cond, bins=50, alpha=0.5, label='CHARGE')
+                    plt.vlines([np.median(data_baseline)], ymin=0, ymax=10, color='r')
+                    plt.vlines([np.median(data_cond)], ymin=0, ymax=10, color='r')
+                    plt.legend()
+                    plt.show()
 
     # Apply Benjamini-Hochberg correction
     # reject, pvals_adjusted, _, _ = multipletests(pvals_wk, alpha=0.05, method='fdr_bh')
@@ -151,13 +161,15 @@ def compute_stats_MI_allsujet_state_stretch():
         plt.show()
 
     #### export
-    fc_stats_dict = {'phase' : phase_list, 'pair' : pairs_to_compute}
+    fc_stats_dict = {'data_type' : ['raw', 'rscore'], 'phase' : phase_list, 'pair' : pairs_to_compute}
 
     xr_fc_stats = xr.DataArray(data=pvals_perm, dims=fc_stats_dict.keys(), coords=fc_stats_dict.values())
+    xr_fc_stats_mne = xr.DataArray(data=pvals_perm_mne, dims=fc_stats_dict.keys(), coords=fc_stats_dict.values())
     
     os.chdir(os.path.join(path_precompute, 'FC', fc_metric))
 
     xr_fc_stats.to_netcdf(f'{fc_metric}_allsujet_STATS_state_stretch.nc')
+    xr_fc_stats_mne.to_netcdf(f'{fc_metric}_mne_allsujet_STATS_state_stretch.nc')
 
         
         
@@ -243,44 +255,55 @@ def compute_stats_ispc_wpli_allsujet_state_stretch():
         print('compute stats')
 
         # pvals_wk = np.zeros((len(phase_list), len(freq_band_fc_list), pairs_to_compute.size))
-        pvals_perm = np.zeros((len(phase_list), len(freq_band_fc_list), len(pairs_to_compute)))
+        pvals_perm = np.zeros((2, len(phase_list), len(freq_band_fc_list), len(pairs_to_compute)))
+        pvals_perm_mne = np.zeros((2, len(phase_list), len(freq_band_fc_list), len(pairs_to_compute)))
 
-        for phase_i, phase in enumerate(phase_list):
+        for data_type_i, data_type in enumerate(['raw', 'rscore']):
 
-            for band_i, band in enumerate(freq_band_fc_list):
+            for phase_i, phase in enumerate(phase_list):
 
-                print(phase, band)
+                for band_i, band in enumerate(freq_band_fc_list):
 
-                #pair_i, pair = 0, pairs_to_compute[0]
-                for pair_i, pair in enumerate(pairs_to_compute):
+                    print(phase, band)
 
-                    # print_advancement(pair_i, len(pairs_to_compute))
+                    #pair_i, pair = 0, pairs_to_compute[0]
+                    for pair_i, pair in enumerate(pairs_to_compute):
 
-                    if phase == 'whole':
-                        data_baseline = np.median(xr_fc_allsujet.loc[:, pair, 'VS', band, phase_vec[phase]].values, axis=-1)
-                        data_cond = np.median(xr_fc_allsujet.loc[:, pair, 'CHARGE', band, phase_vec[phase]].values, axis=-1)
-                    else:
-                        data_baseline = np.median(xr_fc_allsujet_rscore.loc[:, pair, 'VS', band, phase_vec[phase]].values, axis=-1)
-                        data_cond = np.median(xr_fc_allsujet_rscore.loc[:, pair, 'CHARGE', band, phase_vec[phase]].values, axis=-1)
+                        # print_advancement(pair_i, len(pairs_to_compute))
 
-                    if debug:
+                        if data_type == 'raw':
+                            data_baseline = np.median(xr_fc_allsujet.loc[:, pair, 'VS', band, phase_vec[phase]].values, axis=-1)
+                            data_cond = np.median(xr_fc_allsujet.loc[:, pair, 'CHARGE', band, phase_vec[phase]].values, axis=-1)
+                        else:
+                            data_baseline = np.median(xr_fc_allsujet_rscore.loc[:, pair, 'VS', band, phase_vec[phase]].values, axis=-1)
+                            data_cond = np.median(xr_fc_allsujet_rscore.loc[:, pair, 'CHARGE', band, phase_vec[phase]].values, axis=-1)
 
-                        plt.plot(data_baseline)
-                        plt.plot(data_cond)
-                        plt.show()
+                        if debug:
 
-                    # stat, pvals_wk[band_i, pair_i] = scipy.stats.wilcoxon(data_baseline, data_cond)
-                    pvals_perm[phase_i, band_i, pair_i] = get_permutation_2groups(data_baseline, data_cond, n_surr_fc, stat_design=stat_design, mode_grouped=mode_grouped, 
-                                                                  mode_generate_surr=mode_generate_surr_2g, percentile_thresh=percentile_thresh)
-                    if debug:
+                            plt.plot(data_baseline)
+                            plt.plot(data_cond)
+                            plt.show()
 
-                        plt.hist(data_baseline, bins=50, alpha=0.5, label='VS', color='b')
-                        plt.hist(data_cond, bins=50, alpha=0.5, label='CHARGE', color='r')
-                        plt.vlines([np.median(data_baseline)], ymin=0, ymax=10, color='b')
-                        plt.vlines([np.median(data_cond)], ymin=0, ymax=10, color='r')
-                        plt.title(f"signi:{pvals_perm[phase_i, band_i, pair_i]}")
-                        plt.legend()
-                        plt.show()
+                        # stat, pvals_wk[band_i, pair_i] = scipy.stats.wilcoxon(data_baseline, data_cond)
+                        pvals_perm[data_type_i, phase_i, band_i, pair_i] = get_permutation_2groups(data_baseline, data_cond, n_surr_fc, stat_design=stat_design, mode_grouped=mode_grouped, 
+                                                                    mode_generate_surr=mode_generate_surr_2g, percentile_thresh=percentile_thresh)
+                        
+                        T_obs, clusters, cluster_p_values, H0 = mne.stats.permutation_cluster_1samp_test(data_cond - data_baseline, n_permutations=n_surr_fc, threshold=None,
+                                                                    tail=1, out_type="mask", verbose=False)
+                        if cluster_p_values.size == 0:
+                            pvals_perm_mne[data_type_i, phase_i, band_i, pair_i] = False
+                        else:
+                            pvals_perm_mne[data_type_i, phase_i, band_i, pair_i] = True
+
+                        if debug:
+
+                            plt.hist(data_baseline, bins=50, alpha=0.5, label='VS', color='b')
+                            plt.hist(data_cond, bins=50, alpha=0.5, label='CHARGE', color='r')
+                            plt.vlines([np.median(data_baseline)], ymin=0, ymax=10, color='b')
+                            plt.vlines([np.median(data_cond)], ymin=0, ymax=10, color='r')
+                            plt.title(f"signi:{pvals_perm[phase_i, band_i, pair_i]}")
+                            plt.legend()
+                            plt.show()
 
 
         # Apply Benjamini-Hochberg correction
@@ -295,13 +318,15 @@ def compute_stats_ispc_wpli_allsujet_state_stretch():
             plt.show()
 
         #### export
-        fc_stats_dict = {'phase' : phase_list, 'band' : freq_band_fc_list, 'pair' : pairs_to_compute}
+        fc_stats_dict = {'data_type' : ['raw', 'rscore'], 'phase' : phase_list, 'band' : freq_band_fc_list, 'pair' : pairs_to_compute}
 
         xr_fc_stats = xr.DataArray(data=pvals_perm, dims=fc_stats_dict.keys(), coords=fc_stats_dict.values())
+        xr_fc_stats_mne = xr.DataArray(data=pvals_perm_mne, dims=fc_stats_dict.keys(), coords=fc_stats_dict.values())
         
         os.chdir(os.path.join(path_precompute, 'FC', fc_metric))
 
         xr_fc_stats.to_netcdf(f'{fc_metric}_allsujet_STATS_state_stretch.nc')
+        xr_fc_stats_mne.to_netcdf(f'{fc_metric}_mne_allsujet_STATS_state_stretch.nc')
 
         
 
@@ -334,88 +359,105 @@ def compute_stats_MI_allsujet_time_stretch():
 
             pairs_to_compute.append(f'{pair_A}-{pair_B}')        
 
-    cond_sel = ['VS', 'CHARGE']
-
     print('load data')    
 
-    cond_sel = ['VS', 'CHARGE']
-    MI_allsujet_phase_norm = np.zeros((len(sujet_list_FC), len(cond_sel), len(pairs_to_compute), stretch_point_FC))
+    for data_type in ['raw', 'rscore']:
 
-    os.chdir(os.path.join(path_precompute, 'FC', 'MI'))
+        cond_sel = ['VS', 'CHARGE']
+        MI_allsujet = np.zeros((len(sujet_list_FC), len(cond_sel), len(pairs_to_compute), stretch_point_FC))
 
-    for sujet_i, sujet in enumerate(sujet_list_FC):
+        os.chdir(os.path.join(path_precompute, 'FC', 'MI'))
 
-        print_advancement(sujet_i, len(sujet_list_FC))
+        for sujet_i, sujet in enumerate(sujet_list_FC):
 
-        _MI_sujet_rscore = xr.open_dataarray(f'MI_stretch_{sujet}_rscore.nc')
-        MI_allsujet_phase_norm[sujet_i] = np.median(_MI_sujet_rscore, axis=2)
+            print_advancement(sujet_i, len(sujet_list_FC))
 
-    MI_allsujet_dict = {'sujet' : sujet_list_FC, 'cond' : cond_sel, 'pair' : pairs_to_compute, 'time' : np.arange(stretch_point_FC)}
-    xr_MI_allsujet_rscore = xr.DataArray(data=MI_allsujet_phase_norm, dims=MI_allsujet_dict.keys(), coords=MI_allsujet_dict.values())
+            if data_type == 'raw':
+                _MI_sujet_sujet = xr.open_dataarray(f'MI_stretch_{sujet}.nc')
+            else:
+                _MI_sujet_sujet = xr.open_dataarray(f'MI_stretch_{sujet}_rscore.nc')   
 
-    time_vec = xr_MI_allsujet_rscore['time'].values
+            MI_allsujet[sujet_i] = np.median(_MI_sujet_sujet, axis=2)
 
-    print('compute stats')
+        MI_allsujet_dict = {'sujet' : sujet_list_FC, 'cond' : cond_sel, 'pair' : pairs_to_compute, 'time' : np.arange(stretch_point_FC)}
+        xr_MI_allsujet = xr.DataArray(data=MI_allsujet, dims=MI_allsujet_dict.keys(), coords=MI_allsujet_dict.values())
 
-    clusters_allsujet = np.zeros((len(pairs_to_compute), time_vec.size))
+        time_vec = xr_MI_allsujet['time'].values
 
-    #pair_i, pair = 5, pairs_to_compute[5]
-    for pair_i, pair in enumerate(pairs_to_compute):
+        print('compute stats')
 
-        print_advancement(pair_i, len(pairs_to_compute))
+        clusters_allsujet = np.zeros((len(pairs_to_compute), time_vec.size))
+        clusters_allsujet_mne = np.zeros((len(pairs_to_compute), time_vec.size))
 
-        data_baseline = xr_MI_allsujet_rscore.loc[:, 'VS', pair, :].values
-        data_cond = xr_MI_allsujet_rscore.loc[:, 'CHARGE', pair, :].values
+        #pair_i, pair = 5, pairs_to_compute[5]
+        for pair_i, pair in enumerate(pairs_to_compute):
 
-        if debug:
+            print_advancement(pair_i, len(pairs_to_compute))
 
-            for i in range(len(sujet_list_FC)):
-                plt.plot(data_baseline[i,:], alpha=0.2)
-            plt.plot(np.median(data_baseline, axis=0), color='k')
-            plt.show()
+            data_baseline = xr_MI_allsujet.loc[:, 'VS', pair, :].values
+            data_cond = xr_MI_allsujet.loc[:, 'CHARGE', pair, :].values
 
-            for i in range(len(sujet_list_FC)):
-                plt.plot(data_cond[i,:], alpha=0.2)
-            plt.plot(np.median(data_cond, axis=0), color='k')
-            plt.show()
+            if debug:
 
-            for i in range(len(sujet_list_FC)):
-                plt.plot(data_cond[i,:] - data_baseline[i,:], alpha=0.2)
-            plt.plot(np.median(data_cond - data_baseline, axis=0), color='k')
-            plt.show()
+                for i in range(len(sujet_list_FC)):
+                    plt.plot(data_baseline[i,:], alpha=0.2)
+                plt.plot(np.median(data_baseline, axis=0), color='k')
+                plt.show()
 
-            plt.hist(data_baseline.reshape(-1), bins=50, alpha=0.5, label='VS')
-            plt.hist(data_cond.reshape(-1), bins=50, alpha=0.5, label='CHARGE')
-            plt.legend()
-            plt.show()
+                for i in range(len(sujet_list_FC)):
+                    plt.plot(data_cond[i,:], alpha=0.2)
+                plt.plot(np.median(data_cond, axis=0), color='k')
+                plt.show()
 
-        _cluster_pair = get_permutation_cluster_1d(data_baseline, data_cond, n_surr_fc, stat_design=stat_design, mode_grouped=mode_grouped, 
-                                              mode_generate_surr=mode_generate_surr_1d, mode_select_thresh=mode_select_thresh_1d, percentile_thresh=percentile_thresh, 
-                                              size_thresh_alpha=size_thresh_alpha)
+                for i in range(len(sujet_list_FC)):
+                    plt.plot(data_cond[i,:] - data_baseline[i,:], alpha=0.2)
+                plt.plot(np.median(data_cond - data_baseline, axis=0), color='k')
+                plt.show()
+
+                plt.hist(data_baseline.reshape(-1), bins=50, alpha=0.5, label='VS')
+                plt.hist(data_cond.reshape(-1), bins=50, alpha=0.5, label='CHARGE')
+                plt.legend()
+                plt.show()
+
+            _cluster_pair = get_permutation_cluster_1d(data_baseline, data_cond, n_surr_fc, stat_design=stat_design, mode_grouped=mode_grouped, 
+                                                mode_generate_surr=mode_generate_surr_1d, mode_select_thresh=mode_select_thresh_1d, percentile_thresh=percentile_thresh, 
+                                                size_thresh_alpha=size_thresh_alpha)
+            
+            clusters_allsujet[pair_i, :] = _cluster_pair 
         
-        if debug:
+            T_obs, clusters, cluster_p_values, H0 = mne.stats.permutation_cluster_1samp_test(data_cond - data_baseline, n_permutations=n_surr_fc, threshold=None,
+                                                                        tail=1, out_type="indices", verbose=False)
+            
+            if cluster_p_values.size != 0 and any(cluster_p_values < 0.05):
+                for cluster_i in np.where(cluster_p_values < 0.05)[0]:
+                    clusters_allsujet_mne[pair_i, clusters[cluster_i][0]] = 1
+            
+            if debug:
 
-            data_diff = data_cond - data_baseline
-            min, max = data_diff.min(), data_diff.max()
-            time = np.arange(data_diff.shape[-1])
+                data_diff = data_cond - data_baseline
+                min, max = data_diff.min(), data_diff.max()
+                time = np.arange(data_diff.shape[-1])
 
-            for i in range(len(sujet_list_FC)):
-                plt.plot(data_diff[i,:], alpha=0.2)
-            plt.plot(np.median(data_diff, axis=0), color='k')
-            plt.fill_between(time, min, max, where=_cluster_pair, color='r', alpha=0.5)
-            plt.title(f'{pair} {pair_i}')
-            plt.show()
+                for i in range(len(sujet_list_FC)):
+                    plt.plot(data_diff[i,:], alpha=0.2)
+                plt.plot(np.median(data_diff, axis=0), color='k')
+                plt.fill_between(time, min, max, where=_cluster_pair, color='r', alpha=0.5)
+                plt.title(f'{pair} {pair_i}')
+                plt.show()
 
-        clusters_allsujet[pair_i, :] = _cluster_pair 
+        #### export
+        MI_stats_dict = {'pair' : pairs_to_compute, 'time' : time_vec}
 
-    #### export
-    MI_stats_dict = {'pair' : pairs_to_compute, 'time' : time_vec}
-
-    xr_MI_stats = xr.DataArray(data=clusters_allsujet, dims=MI_stats_dict.keys(), coords=MI_stats_dict.values())
-    
-    os.chdir(os.path.join(path_precompute, 'FC', 'MI'))
-    xr_MI_stats.to_netcdf(f'MI_allsujet_STATS_time_stretch.nc')
-
+        xr_MI_stats = xr.DataArray(data=clusters_allsujet, dims=MI_stats_dict.keys(), coords=MI_stats_dict.values())
+        xr_MI_stats_mne = xr.DataArray(data=clusters_allsujet_mne, dims=MI_stats_dict.keys(), coords=MI_stats_dict.values())
+        
+        os.chdir(os.path.join(path_precompute, 'FC', 'MI'))
+        if data_type == 'raw':
+            xr_MI_stats.to_netcdf(f'MI_allsujet_STATS_HOMEMADE_time_stretch.nc')
+            xr_MI_stats_mne.to_netcdf(f'MI_allsujet_STATS_MNE_time_stretch.nc')
+        if data_type == 'rscore':
+            xr_MI_stats.to_netcdf(f'MI_allsujet_STATS_HOMEMADE_time_stretch_rscore.nc')
+            xr_MI_stats_mne.to_netcdf(f'MI_allsujet_STATS_MNE_time_stretch_rscore.nc')
 
     
 
@@ -446,64 +488,84 @@ def compute_stats_wpli_ispc_allsujet_time_stretch():
 
         cond_sel = ['VS', 'CHARGE']
 
-        fc_allsujet_phase_norm = np.zeros((len(sujet_list_FC), len(pairs_to_compute), len(cond_sel), len(freq_band_fc_list), stretch_point_FC))
+        for data_type in ['raw', 'rscore']:
 
-        os.chdir(os.path.join(path_precompute, 'FC', fc_metric))
+            fc_allsujet_phase = np.zeros((len(sujet_list_FC), len(pairs_to_compute), len(cond_sel), len(freq_band_fc_list), stretch_point_FC))
 
-        for sujet_i, sujet in enumerate(sujet_list_FC):
+            os.chdir(os.path.join(path_precompute, 'FC', fc_metric))
 
-            print_advancement(sujet_i, len(sujet_list))
+            for sujet_i, sujet in enumerate(sujet_list_FC):
 
-            _fc_allsujet_rscore = xr.open_dataarray(f'{fc_metric}_{sujet}_stretch_rscore.nc')
-            fc_allsujet_phase_norm[sujet_i] = np.median(_fc_allsujet_rscore, axis=3)
+                print_advancement(sujet_i, len(sujet_list))
 
-        fc_allsujet_allsujet_dict = {'sujet' : sujet_list_FC, 'pair' : pairs_to_compute, 'cond' : cond_sel, 'band' : freq_band_fc_list, 'time' : np.arange(stretch_point_FC)}
+                if data_type == 'raw':
+                    _fc_allsujet_sujet = xr.open_dataarray(f'{fc_metric}_{sujet}_stretch.nc')
+                else:
+                    _fc_allsujet_sujet = xr.open_dataarray(f'{fc_metric}_{sujet}_stretch_rscore.nc')
 
-        xr_fc_allsujet_rscore = xr.DataArray(data=fc_allsujet_phase_norm, dims=fc_allsujet_allsujet_dict.keys(), coords=fc_allsujet_allsujet_dict.values())
+                fc_allsujet_phase[sujet_i] = np.median(_fc_allsujet_sujet, axis=3)
 
-        print('compute stats')
+            fc_allsujet_allsujet_dict = {'sujet' : sujet_list_FC, 'pair' : pairs_to_compute, 'cond' : cond_sel, 'band' : freq_band_fc_list, 'time' : np.arange(stretch_point_FC)}
 
-        clusters = np.zeros((len(freq_band_fc_list), len(pairs_to_compute), stretch_point_FC))
+            xr_fc_allsujet = xr.DataArray(data=fc_allsujet_phase, dims=fc_allsujet_allsujet_dict.keys(), coords=fc_allsujet_allsujet_dict.values())
 
-        #band_i, band = 0, freq_band_fc_list[0]
-        for band_i, band in enumerate(freq_band_fc_list):
+            print('compute stats')
 
-            print(band)
+            clusters = np.zeros((len(freq_band_fc_list), len(pairs_to_compute), stretch_point_FC))
+            clusters_mne = np.zeros((len(freq_band_fc_list), len(pairs_to_compute), stretch_point_FC))
 
-            #pair_i, pair = 1, pairs_to_compute[1]
-            for pair_i, pair in enumerate(pairs_to_compute):
+            #band_i, band = 0, freq_band_fc_list[0]
+            for band_i, band in enumerate(freq_band_fc_list):
 
-                print_advancement(pair_i, len(pairs_to_compute))
+                print(band)
 
-                data_baseline = xr_fc_allsujet_rscore.loc[:, pair, 'VS', band, :].values
-                data_cond = xr_fc_allsujet_rscore.loc[:, pair, 'CHARGE', band, :].values
+                #pair_i, pair = 1, pairs_to_compute[1]
+                for pair_i, pair in enumerate(pairs_to_compute):
 
-                _cluster = get_permutation_cluster_1d(data_baseline, data_cond, n_surr_fc, stat_design=stat_design, mode_grouped=mode_grouped, 
-                                              mode_generate_surr=mode_generate_surr_1d, mode_select_thresh=mode_select_thresh_1d, percentile_thresh=percentile_thresh, 
-                                              size_thresh_alpha=size_thresh_alpha)
+                    print_advancement(pair_i, len(pairs_to_compute))
 
-                if debug:
+                    data_baseline = xr_fc_allsujet.loc[:, pair, 'VS', band, :].values
+                    data_cond = xr_fc_allsujet.loc[:, pair, 'CHARGE', band, :].values
 
-                    data_diff = data_cond - data_baseline
-                    min, max = data_diff.min(), data_diff.max()
-                    time = np.arange(data_diff.shape[-1])
+                    _cluster = get_permutation_cluster_1d(data_baseline, data_cond, n_surr_fc, stat_design=stat_design, mode_grouped=mode_grouped, 
+                                                mode_generate_surr=mode_generate_surr_1d, mode_select_thresh=mode_select_thresh_1d, percentile_thresh=percentile_thresh, 
+                                                size_thresh_alpha=size_thresh_alpha)
+                    
+                    clusters[band_i, pair_i, :] = _cluster
 
-                    for i in range(len(sujet_list_FC)):
-                        plt.plot(data_diff[i,:], alpha=0.2)
-                    plt.plot(np.median(data_diff, axis=0), color='k')
-                    plt.fill_between(time, min, max, where=_cluster, color='r', alpha=0.5)
-                    plt.title(f'{pair} {pair_i}')
-                    plt.show()
+                    T_obs, _clusters, cluster_p_values, H0 = mne.stats.permutation_cluster_1samp_test(data_cond - data_baseline, n_permutations=n_surr_fc, threshold=None,
+                                                                        tail=1, out_type="indices", verbose=False)
+            
+                    if cluster_p_values.size != 0 and any(cluster_p_values < 0.05):
+                        for cluster_i in np.where(cluster_p_values < 0.05)[0]:
+                            clusters_mne[band_i, pair_i, _clusters[cluster_i][0]] = 1
 
-                clusters[band_i, pair_i, :] = _cluster 
+                    if debug:
 
-        #### export
-        fc_stats_dict = {'band' : freq_band_fc_list, 'pair' : pairs_to_compute, 'time' : np.arange(stretch_point_FC)}
+                        data_diff = data_cond - data_baseline
+                        min, max = data_diff.min(), data_diff.max()
+                        time = np.arange(data_diff.shape[-1])
 
-        xr_fc_stats = xr.DataArray(data=clusters, dims=fc_stats_dict.keys(), coords=fc_stats_dict.values())
-        
-        os.chdir(os.path.join(path_precompute, 'FC', fc_metric))
-        xr_fc_stats.to_netcdf(f'{fc_metric}_allsujet_STATS_time_stretch.nc')
+                        for i in range(len(sujet_list_FC)):
+                            plt.plot(data_diff[i,:], alpha=0.2)
+                        plt.plot(np.median(data_diff, axis=0), color='k')
+                        plt.fill_between(time, min, max, where=_cluster, color='r', alpha=0.5)
+                        plt.title(f'{pair} {pair_i}')
+                        plt.show()
+
+            #### export
+            fc_stats_dict = {'band' : freq_band_fc_list, 'pair' : pairs_to_compute, 'time' : np.arange(stretch_point_FC)}
+
+            xr_fc_stats = xr.DataArray(data=clusters, dims=fc_stats_dict.keys(), coords=fc_stats_dict.values())
+            xr_fc_stats_mne = xr.DataArray(data=clusters_mne, dims=fc_stats_dict.keys(), coords=fc_stats_dict.values())
+            
+            os.chdir(os.path.join(path_precompute, 'FC', fc_metric))
+            if data_type == 'raw':
+                xr_fc_stats.to_netcdf(f'{fc_metric}_allsujet_STATS_HOMEMADE_time_stretch.nc')
+                xr_fc_stats_mne.to_netcdf(f'{fc_metric}_allsujet_STATS_MNE_time_stretch.nc')
+            else:
+                xr_fc_stats.to_netcdf(f'{fc_metric}_allsujet_STATS_HOMEMADE_time_stretch_rscore.nc')
+                xr_fc_stats_mne.to_netcdf(f'{fc_metric}_allsujet_STATS_MNE_time_stretch_rscore.nc')
 
 
     

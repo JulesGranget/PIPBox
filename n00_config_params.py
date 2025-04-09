@@ -117,9 +117,9 @@ if PC_ID == 'jules_pc':
     else:
 
         PC_working = 'Jules_VPN'
-        path_main_workdir = 'N:\\Projets\\PPI_Jules\\Scripts'
-        path_general = 'N:\\Projets\\PPI_Jules'
-        path_memmap = 'N:\\Projets\\PPI_Jules\\memmap'
+        path_main_workdir = 'N:\\cmo\\Projets\\PPI_Jules\\Scripts'
+        path_general = 'N:\\cmo\\Projets\\PPI_Jules'
+        path_memmap = 'N:\\cmo\\Projets\\PPI_Jules\\memmap'
         n_core = 4
 
 
