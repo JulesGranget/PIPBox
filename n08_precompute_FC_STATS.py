@@ -135,7 +135,7 @@ def compute_stats_MI_allsujet_state_stretch():
                                                                     mode_generate_surr=mode_generate_surr_2g, percentile_thresh=percentile_thresh)
                 
                 T_obs, clusters, cluster_p_values, H0 = mne.stats.permutation_cluster_1samp_test(data_cond - data_baseline, n_permutations=n_surr_fc, threshold=None,
-                                                                    tail=1, out_type="mask", verbose=False)
+                                                                    tail=0, out_type="mask", verbose=False)
                 if cluster_p_values.size == 0:
                     pvals_perm_mne[data_type_i, phase_i, pair_i] = False
                 else:
@@ -289,7 +289,7 @@ def compute_stats_ispc_wpli_allsujet_state_stretch():
                                                                     mode_generate_surr=mode_generate_surr_2g, percentile_thresh=percentile_thresh)
                         
                         T_obs, clusters, cluster_p_values, H0 = mne.stats.permutation_cluster_1samp_test(data_cond - data_baseline, n_permutations=n_surr_fc, threshold=None,
-                                                                    tail=1, out_type="mask", verbose=False)
+                                                                    tail=0, out_type="mask", verbose=False)
                         if cluster_p_values.size == 0:
                             pvals_perm_mne[data_type_i, phase_i, band_i, pair_i] = False
                         else:
@@ -426,7 +426,7 @@ def compute_stats_MI_allsujet_time_stretch():
             clusters_allsujet[pair_i, :] = _cluster_pair 
         
             T_obs, clusters, cluster_p_values, H0 = mne.stats.permutation_cluster_1samp_test(data_cond - data_baseline, n_permutations=n_surr_fc, threshold=None,
-                                                                        tail=1, out_type="indices", verbose=False)
+                                                                        tail=0, out_type="indices", verbose=False)
             
             if cluster_p_values.size != 0 and any(cluster_p_values < 0.05):
                 for cluster_i in np.where(cluster_p_values < 0.05)[0]:
@@ -534,7 +534,7 @@ def compute_stats_wpli_ispc_allsujet_time_stretch():
                     clusters[band_i, pair_i, :] = _cluster
 
                     T_obs, _clusters, cluster_p_values, H0 = mne.stats.permutation_cluster_1samp_test(data_cond - data_baseline, n_permutations=n_surr_fc, threshold=None,
-                                                                        tail=1, out_type="indices", verbose=False)
+                                                                        tail=0, out_type="indices", verbose=False)
             
                     if cluster_p_values.size != 0 and any(cluster_p_values < 0.05):
                         for cluster_i in np.where(cluster_p_values < 0.05)[0]:

@@ -40,86 +40,80 @@ def save_tf_allsujet(chan):
         return
 
     #### load data
-    data_allcond = {}
     print('#### LOAD BASELINE ####', flush=True)
 
     os.chdir(os.path.join(path_precompute, 'TF', 'STRETCH'))
 
-    tf_stretch_baseline_allsujet = np.zeros((len(sujet_list), nfrex, stretch_point_ERP))
+    tf_stretch_baseline_allsujet = np.zeros((len(sujet_list_FC), nfrex, stretch_point_ERP))
 
-    #sujet_i, sujet = 46, sujet_list[46]
-    for sujet_i, sujet in enumerate(sujet_list):
+    #sujet_i, sujet = 46, sujet_list_FC[46]
+    for sujet_i, sujet in enumerate(sujet_list_FC):
 
         tf_stretch_baseline_allsujet[sujet_i,:,:] = np.load(f'{sujet}_VS_tf_stretch.npy')[np.where(chan_list_eeg_short == chan)[0][0],:,:]
 
-    data_allcond['VS'] = np.median(tf_stretch_baseline_allsujet, axis=0)
-
     print('#### LOAD COND ####', flush=True)
 
-    tf_stretch_cond_allsujet = np.zeros((len(sujet_list), nfrex, stretch_point_ERP))
+    tf_stretch_cond_allsujet = np.zeros((len(sujet_list_FC), nfrex, stretch_point_ERP))
 
-    #sujet_i, sujet = 0, sujet_list[47]
-    for sujet_i, sujet in enumerate(sujet_list):
+    #sujet_i, sujet = 0, sujet_list_FC[47]
+    for sujet_i, sujet in enumerate(sujet_list_FC):
 
         tf_stretch_cond_allsujet[sujet_i,:,:] = np.load(f'{sujet}_CHARGE_tf_stretch.npy')[np.where(chan_list_eeg_short == chan)[0][0],:,:]
 
-    data_allcond['CHARGE'] = np.median(tf_stretch_cond_allsujet, axis=0)
+    data_diff = np.median(tf_stretch_cond_allsujet - tf_stretch_baseline_allsujet, axis=0)
     
     #### load data thresh
     os.chdir(os.path.join(path_precompute, 'TF', 'STRETCH_STATS'))
     
     stats_allcond = np.load(f'{chan}_allsujet_tf_STATS.npy')
+    stats_allcond_mne = np.load(f'{chan}_allsujet_tf_STATS_MNE.npy')
 
     #### scale    
-    vlim = np.abs(np.array([data_allcond['VS'].min(), data_allcond['CHARGE'].min(), data_allcond['VS'].max(), data_allcond['CHARGE'].max()])).max()
+    vlim = np.abs(np.array([data_diff.min(), data_diff.max()])).max()
 
-    #### plot 
-    fig, axs = plt.subplots(ncols=len(cond_list))
+    for stat_type in ['HOMEMADE', 'MNE']:
 
-    plt.suptitle(f'{chan} tf allsujet count:{len(sujet_list)}')
+        #### plot 
+        fig, ax = plt.subplots()
 
-    fig.set_figheight(5)
-    fig.set_figwidth(15)
+        plt.suptitle(f'{chan} tf allsujet count:{len(sujet_list_FC)}')
 
-    #### for plotting l_gamma down
-    #c, cond = 1, cond_to_plot[1]
-    for c, cond in enumerate(cond_list):
-
-        ax = axs[c]
-        ax.set_title(cond, fontweight='bold', rotation=0)
+        fig.set_figheight(5)
+        fig.set_figwidth(8)
 
         #### generate time vec
         time_vec = np.arange(stretch_point_ERP)
 
         #### plot
-        ax.pcolormesh(time_vec, frex, data_allcond[cond], vmin=-vlim, vmax=vlim, shading='gouraud', cmap=plt.get_cmap('seismic'))
+        ax.pcolormesh(time_vec, frex, data_diff, vmin=-vlim, vmax=vlim, shading='gouraud', cmap=plt.get_cmap('seismic'))
         # ax.pcolormesh(time_vec, frex, data_allcond[cond], shading='gouraud', cmap=plt.get_cmap('seismic'))
         ax.set_yscale('log')
 
         #### stats
-        ax.contour(time_vec, frex, stats_allcond, levels=0, colors='g')
+        if stat_type == 'HOMEMADE':
+            ax.contour(time_vec, frex, stats_allcond, levels=0, colors='g')
+        else:
+            ax.contour(time_vec, frex, stats_allcond_mne, levels=0, colors='g')
 
         ax.vlines(stretch_point_ERP/2, ymin=frex[0], ymax=frex[-1], colors='g')
         ax.set_yticks([2,8,10,30,50,100,150], labels=[2,8,10,30,50,100,150])
         ax.set_ylim(frex[0], frex[-1])
 
-    #plt.show()
+        #plt.show()
 
-    #### save
-    os.chdir(os.path.join(path_results, 'TF', 'allsujet'))
-    fig.savefig(f'{chan}.jpeg', dpi=150)
+        #### save
+        os.chdir(os.path.join(path_results, 'TF', 'allsujet'))
+        fig.savefig(f'{chan}_{stat_type}.jpeg', dpi=150)
 
-    fig.clf()
-    plt.close('all')
-    gc.collect()
+        fig.clf()
+        plt.close('all')
+        gc.collect()
 
 
 
    
 #chan = chan_list_eeg_short[0]
 def save_tf_subjectwise(chan):
-
-    print(f'#### COMPUTE TF STATS {chan} ####', flush=True)
 
     #### identify if already computed for all
     os.chdir(os.path.join(path_results, 'TF'))
@@ -129,38 +123,40 @@ def save_tf_subjectwise(chan):
         return
 
     #### load data
-    print('#### LOAD BASELINE ####', flush=True)
+    print(f'#### LOAD BASELINE {chan} ####', flush=True)
 
     os.chdir(os.path.join(path_precompute, 'TF', 'STRETCH'))
 
-    tf_stretch_baseline_allsujet = np.zeros((len(sujet_list), nfrex, stretch_point_ERP))
+    tf_stretch_baseline_allsujet = np.zeros((len(sujet_list_FC), nfrex, stretch_point_ERP))
 
-    #sujet_i, sujet = 46, sujet_list[46]
-    for sujet_i, sujet in enumerate(sujet_list):
+    #sujet_i, sujet = 46, sujet_list_FC[46]
+    for sujet_i, sujet in enumerate(sujet_list_FC):
 
         tf_stretch_baseline_allsujet[sujet_i,:,:] = np.load(f'{sujet}_VS_tf_stretch.npy')[np.where(chan_list_eeg_short == chan)[0][0],:,:]
 
-    print('#### LOAD COND ####', flush=True)
+    print(f'#### LOAD COND {chan} ####', flush=True)
 
-    tf_stretch_cond_allsujet = np.zeros((len(sujet_list), nfrex, stretch_point_ERP))
+    tf_stretch_cond_allsujet = np.zeros((len(sujet_list_FC), nfrex, stretch_point_ERP))
 
-    #sujet_i, sujet = 0, sujet_list[47]
-    for sujet_i, sujet in enumerate(sujet_list):
+    #sujet_i, sujet = 0, sujet_list_FC[47]
+    for sujet_i, sujet in enumerate(sujet_list_FC):
 
         tf_stretch_cond_allsujet[sujet_i,:,:] = np.load(f'{sujet}_CHARGE_tf_stretch.npy')[np.where(chan_list_eeg_short == chan)[0][0],:,:]    
 
     data_allcond = {'VS' : tf_stretch_baseline_allsujet, 'CHARGE' : tf_stretch_cond_allsujet}
 
+    print(f'#### PLOT {chan} ####', flush=True)
+
     #### plot 
-    #sujet_i, sujet = 0, sujet_list[0]
-    for sujet_i, sujet in enumerate(sujet_list):
+    #sujet_i, sujet = 0, sujet_list_FC[0]
+    for sujet_i, sujet in enumerate(sujet_list_FC):
 
-        fig, axs = plt.subplots(ncols=len(cond_list))
+        fig, axs = plt.subplots(ncols=len(cond_list)+1)
 
-        plt.suptitle(f'{sujet} {chan} tf allsujet count:{len(sujet_list)}')
+        plt.suptitle(f'{sujet} {chan} tf allsujet count:{len(sujet_list_FC)}')
 
         fig.set_figheight(5)
-        fig.set_figwidth(15)
+        fig.set_figwidth(18)
 
         #### for plotting l_gamma down
         #c, cond = 1, cond_to_plot[1]
@@ -173,7 +169,6 @@ def save_tf_subjectwise(chan):
             time_vec = np.arange(stretch_point_ERP)
 
             #### plot
-            # ax.pcolormesh(time_vec, frex, data_allcond[cond], vmin=-vlim, vmax=vlim, shading='gouraud', cmap=plt.get_cmap('seismic'))
             ax.pcolormesh(time_vec, frex, data_allcond[cond][sujet_i,:,:], shading='gouraud', cmap=plt.get_cmap('seismic'))
             ax.set_yscale('log')
 
@@ -181,10 +176,24 @@ def save_tf_subjectwise(chan):
             ax.set_yticks([2,8,10,30,50,100,150], labels=[2,8,10,30,50,100,150])
             ax.set_ylim(frex[0], frex[-1])
 
+        ax = axs[2]
+        ax.set_title('diff', fontweight='bold', rotation=0)
+
+        #### generate time vec
+        time_vec = np.arange(stretch_point_ERP)
+
+        #### plot
+        ax.pcolormesh(time_vec, frex, data_allcond['CHARGE'][sujet_i,:,:] - data_allcond['VS'][sujet_i,:,:], shading='gouraud', cmap=plt.get_cmap('seismic'))
+        ax.set_yscale('log')
+
+        ax.vlines(stretch_point_ERP/2, ymin=frex[0], ymax=frex[-1], colors='g')
+        ax.set_yticks([2,8,10,30,50,100,150], labels=[2,8,10,30,50,100,150])
+        ax.set_ylim(frex[0], frex[-1])
+
         #plt.show()
 
         #### save
-        os.chdir(os.path.join(path_results, 'TF', 'subjectwise'))
+        os.chdir(os.path.join(path_results, 'TF', 'subjectwise', chan))
         fig.savefig(f'{sujet}_{chan}.jpeg', dpi=150)
 
         fig.clf()
@@ -224,7 +233,7 @@ def save_topoplot_allsujet():
     print('#### LOAD DATA ####', flush=True)
 
     tf = np.zeros((len(cond_list), len(chan_list_eeg_short), nfrex, stretch_point_ERP))
-    tf_stretch_allsujet = np.zeros((len(sujet_list), len(chan_list_eeg_short), nfrex, stretch_point_ERP))
+    tf_stretch_allsujet = np.zeros((2, len(sujet_list_FC), len(chan_list_eeg_short), nfrex, stretch_point_ERP))
 
     os.chdir(os.path.join(path_precompute, 'TF', 'STRETCH'))
 
@@ -232,39 +241,15 @@ def save_topoplot_allsujet():
 
         print(cond)
 
-        #sujet_i, sujet = 46, sujet_list[46]
-        for sujet_i, sujet in enumerate(sujet_list):
+        #sujet_i, sujet = 46, sujet_list_FC[46]
+        for sujet_i, sujet in enumerate(sujet_list_FC):
 
-            tf_stretch_allsujet[sujet_i,:,:,:] = np.load(f'{sujet}_{cond}_tf_stretch.npy')
+            tf_stretch_allsujet[cond_i, sujet_i,:,:,:] = np.load(f'{sujet}_{cond}_tf_stretch.npy')
 
-        tf[cond_i, :, :, :] = np.median(tf_stretch_allsujet, axis=0)
+    tf_dict = {'cond' : cond_list, 'sujet' : sujet_list_FC, 'chan_list' : chan_list_eeg_short, 'frex' : frex, 'time' : np.arange(stretch_point_ERP)}
+    xr_tf = xr.DataArray(data=tf_stretch_allsujet, dims=tf_dict.keys(), coords=tf_dict.values())
 
-    tf_diff = tf[1,:,:,:] - tf[0,:,:,:]
-
-    if debug:
-
-        plt.pcolormesh(tf_diff[0,:,:])
-        plt.show()
-    
-    #### load stats
-    print('#### LOAD STATS ####', flush=True)
-
-    os.chdir(os.path.join(path_precompute, 'TF', 'STRETCH_STATS'))
-
-    stats_tf = np.zeros((len(chan_list_eeg_short), nfrex, stretch_point_ERP))
-    
-    for chan_i, chan in enumerate(chan_list_eeg_short):
-
-        stats_tf[chan_i,:] = np.load(f'{chan}_allsujet_tf_STATS.npy')
-
-    #### shift data
-    tf_diff_shift = np.concat((tf_diff[:,:,phase_shift:], tf_diff[:,:,:phase_shift]), axis=-1)
-    stats_tf_shift = np.concat((stats_tf[:,:,phase_shift:], stats_tf[:,:,:phase_shift]), axis=-1)
-
-    if debug:
-
-        plt.pcolormesh(tf_diff_shift[0,:,:])
-        plt.show()
+    shifted_xr_tf = xr_tf.roll(time=-phase_shift, roll_coords=False)
 
     #### chunk data
     print('CHUNK')
@@ -278,14 +263,18 @@ def save_topoplot_allsujet():
         for band_i, band in enumerate(freq_band_fc_list):
 
             frex_mask = (frex >= freq_band_fc[band][0]) & (frex < freq_band_fc[band][1]) 
-            tf_chunk = tf_diff_shift[:,:,phase_vec[phase]][:,frex_mask,:]
-            stats_chunk = stats_tf_shift[:,:,phase_vec[phase]][:,frex_mask,:]
+            tf_chunk = shifted_xr_tf.loc[:,:,:,:,phase_vec[phase]][:, :, :, frex_mask]
 
             for chan_i, chan in enumerate(chan_list_eeg_short):
 
-                if stats_chunk[chan_i,:,:].sum() >= point_thresh*stats_chunk[chan_i,:,:].size:
+                data_baseline, data_cond = tf_chunk.loc['VS',:,chan].median(['frex', 'time']).values, tf_chunk.loc['CHARGE',:,chan].median(['frex', 'time']).values
 
-                    topoplot_data[phase_i, band_i, chan_i] = np.median(tf_chunk[chan_i,:,:][stats_chunk[chan_i,:,:].astype('bool')])
+                mask = get_permutation_2groups(data_baseline, data_cond, n_surr_fc, stat_design=stat_design, mode_grouped=mode_grouped, 
+                                                                    mode_generate_surr=mode_generate_surr_2g, percentile_thresh=percentile_thresh)
+
+                if mask:
+
+                    topoplot_data[phase_i, band_i, chan_i] = np.median(data_cond - data_baseline)
                     topoplot_signi[phase_i, band_i, chan_i] = True
 
     #### vlim
@@ -342,6 +331,8 @@ if __name__ == '__main__':
         save_tf_subjectwise(chan)
 
     save_topoplot_allsujet()
+
+
 
         
 

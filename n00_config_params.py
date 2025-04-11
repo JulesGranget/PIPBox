@@ -26,10 +26,10 @@ sujet_list = ['01NM_MW', '02NM_OL', '03NM_MC', '04NM_LS', '05NM_JS', '06NM_HC', 
               '53DL_23', '54DL_24', '55DL_25', '56DL_26', '57DL_27', '58DL_28', '59DL_29', '60DL_30', '61DL_31', '62DL_32', '63DL_34',
               ]
 
-sujet_list_FC = ['01NM_MW', '02NM_OL', '04NM_LS', '05NM_JS', '06NM_HC', '07NM_YB', '08NM_CM', '10NM_VA', '12NM_PS', '13NM_JP', '14NM_LD', '15PH_JS', '19PH_VA', '23IL_DM', 
-                 '24IL_DJ', '26IL_AP', '27IL_SL', '28IL_LL', '31IL_MA', '33IL_BA', '34IL_CM', '35IL_EA', '37DL_05', '38DL_06', '39DL_07', '40DL_08', '41DL_11', '42DL_12', 
-                 '43DL_13', '44DL_14', '45DL_15', '46DL_16', '47DL_17', '48DL_18', '49DL_19', '50DL_20', '51DL_21', '52DL_22', '53DL_23', '54DL_24', '55DL_25', '56DL_26', 
-                 '57DL_27', '58DL_28', '59DL_29', '60DL_30', '61DL_31', '62DL_32', '63DL_34']
+sujet_list_FC = ['01NM_MW', '02NM_OL', '04NM_LS', '05NM_JS', '06NM_HC', '07NM_YB', '08NM_CM', '10NM_VA', '12NM_PS', '13NM_JP', '14NM_LD', '15PH_JS', '19PH_VA', 
+                 '24IL_DJ', '26IL_AP', '27IL_SL', '28IL_LL', '31IL_MA', '33IL_BA', '34IL_CM', '35IL_EA', '37DL_05', '38DL_06', '39DL_07', '40DL_08', 
+                 '43DL_13', '44DL_14', '45DL_15', '47DL_17', '49DL_19', '50DL_20', '51DL_21', '52DL_22', '54DL_24', '55DL_25', '56DL_26', 
+                 '57DL_27', '58DL_28', '59DL_29', '61DL_31', '62DL_32', '63DL_34']
 
 cond_list = ['VS', 'CHARGE']
 
@@ -70,6 +70,8 @@ chan_list_eeg_short = np.array(['C3', 'C4', 'CP1', 'CP2', 'Cz', 'F3', 'F4', 'FC1
 # In PHYSIOLOGY sujet ['MC05', 'OL04'] have been excluded because they cant load
 # In ITL sujet ['NN', ] have been excluded due to bad signals in ITL
 # In NORMATIVE ['VS06', 'ML11', 'SL18', 'DR05'] removed no signal in CHARGE
+
+# sujets : [23, 41, 42, 46, 48, 53, 60] removed because of mvt and respiratory artifacts
 
 condition_list_project_wise = {'COVEM_ITL': ['CHARGE'],
                       'NORMATIVE' : ['CHARGE', 'PETITE CHARGE', 'ARTIFACT', 'SNIFS', 'VS', 'VS2'], 
@@ -226,7 +228,7 @@ sujet_respi_adjust = {
 '36IL_LT':'inverse',   '37DL_05':'inverse',   '38DL_06':'inverse',   '39DL_07':'inverse',   
 '40DL_08':'inverse',   '41DL_11':'inverse',   '42DL_12':'inverse',   '43DL_13':'inverse',   
 '44DL_14':'inverse',   '45DL_15':'inverse',   '46DL_16':'inverse',   '47DL_17':'inverse',   
-'48DL_18':'inverse',   '49DL_19':'inverse',   '50DL_20':'inverse',   '51DL_21':'inverse',   
+'48DL_18':'inverse',   '49DL_19':'normal',   '50DL_20':'inverse',   '51DL_21':'inverse',   
 '52DL_22':'inverse',   '53DL_23':'inverse',   '54DL_24':'inverse',   '55DL_25':'inverse',   
 '56DL_26':'inverse',   '57DL_27':'inverse',   '58DL_28':'inverse',   '59DL_29':'inverse',   
 '60DL_30':'inverse',   '61DL_31':'inverse',   '62DL_32':'inverse',   '63DL_34':'inverse',
@@ -344,6 +346,7 @@ wavetime = np.arange(-3,3,1/srate)
 frex = np.logspace(np.log10(freq_list[0]), np.log10(freq_list[1]), nfrex) 
 cycles = np.logspace(np.log10(ncycle_list[0]), np.log10(ncycle_list[1]), nfrex).astype('int')
 
+nrespcycle_TF = 100
 ratio_stretch_TF = 0.5
 n_surrogates_tf = 1000
 tf_stats_percentile_cluster = 95

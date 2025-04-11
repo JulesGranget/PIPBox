@@ -395,7 +395,7 @@ if __name__ == '__main__':
 
     #get_MI_sujet_stretch()
     execute_function_in_slurm_bash('n07_precompute_FC', 'get_MI_sujet_stretch', [[sujet] for sujet in sujet_list_FC], n_core=15, mem='20G')
-    #c()
+    #sync_folders__push_to_crnldata()
 
     #get_ISPC_WPLI_stretch()
     execute_function_in_slurm_bash('n07_precompute_FC', 'get_ISPC_WPLI_stretch', [[sujet] for sujet in sujet_list_FC], n_core=20, mem='30G')

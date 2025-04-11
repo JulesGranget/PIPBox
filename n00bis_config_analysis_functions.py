@@ -2244,8 +2244,6 @@ def get_permutation_cluster_2d(data_baseline, data_cond, n_surr, stat_design='wi
 
             fig, ax = plt.subplots()
 
-            time_vec = np.arange(len_sig)
-
             ax.pcolormesh(obs_distrib, shading='gouraud', cmap=plt.get_cmap('seismic'))
             ax.contour(mask_thresh, levels=0, colors='g')
 

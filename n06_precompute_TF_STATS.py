@@ -41,19 +41,19 @@ def precompute_tf_STATS_allsujet(chan):
 
     print('#### LOAD BASELINE ####', flush=True)
 
-    tf_stretch_baseline_allsujet = np.zeros((len(sujet_list), nfrex, stretch_point_ERP))
+    tf_stretch_baseline_allsujet = np.zeros((len(sujet_list_FC), nfrex, stretch_point_ERP))
 
-    #sujet_i, sujet = 0, sujet_list[0]
-    for sujet_i, sujet in enumerate(sujet_list):
+    #sujet_i, sujet = 0, sujet_list_FC[0]
+    for sujet_i, sujet in enumerate(sujet_list_FC):
 
         tf_stretch_baseline_allsujet[sujet_i,:,:] = np.load(f'{sujet}_VS_tf_stretch.npy')[np.where(chan_list_eeg_short == chan)[0][0],:,:]
 
     print('#### LOAD COND ####', flush=True)
 
-    tf_stretch_cond_allsujet = np.zeros((len(sujet_list), nfrex, stretch_point_ERP))
+    tf_stretch_cond_allsujet = np.zeros((len(sujet_list_FC), nfrex, stretch_point_ERP))
 
-    #sujet_i, sujet = 0, sujet_list[47]
-    for sujet_i, sujet in enumerate(sujet_list):
+    #sujet_i, sujet = 0, sujet_list_FC[47]
+    for sujet_i, sujet in enumerate(sujet_list_FC):
 
         tf_stretch_cond_allsujet[sujet_i,:,:] = np.load(f'{sujet}_CHARGE_tf_stretch.npy')[np.where(chan_list_eeg_short == chan)[0][0],:,:]
 
@@ -64,6 +64,24 @@ def precompute_tf_STATS_allsujet(chan):
                                 mode_grouped=mode_grouped, mode_generate_surr=mode_generate_surr_1d, mode_select_thresh=mode_select_thresh_1d, 
                                 percentile_thresh=percentile_thresh, size_thresh_alpha=size_thresh_alpha)
     
+    t_obs, clusters, cluster_p, H0 = mne.stats.permutation_cluster_1samp_test(tf_stretch_cond_allsujet - tf_stretch_baseline_allsujet, threshold=None, n_permutations=n_surrogates_tf, 
+                                             tail=0, out_type='mask')
+    
+    tf_stats_mne = np.zeros_like(t_obs, dtype=int)
+
+    # Loop through clusters and mark significant ones
+    for i, cluster in enumerate(clusters):
+        if cluster_p[i] < 0.05:
+            tf_stats_mne[cluster] = 1  #
+
+    if debug:
+
+        plt.pcolormesh(tf_stats)
+        plt.show()
+
+        plt.pcolormesh(tf_stats_mne)
+        plt.show()
+
     ######## SAVE ########
 
     print(f'SAVE', flush=True)
@@ -71,6 +89,7 @@ def precompute_tf_STATS_allsujet(chan):
     os.chdir(os.path.join(path_precompute, 'TF', 'STRETCH_STATS'))
     
     np.save(f'{chan}_allsujet_tf_STATS.npy', tf_stats)
+    np.save(f'{chan}_allsujet_tf_STATS_MNE.npy', tf_stats_mne)
 
     
 
@@ -85,12 +104,8 @@ def precompute_tf_STATS_allsujet(chan):
 
 if __name__ == '__main__':
 
-    #chan = chan_list_eeg_short[0]
-    for chan in chan_list_eeg_short:
-                
-        # precompute_tf_STATS_allsujet(chan)
-        execute_function_in_slurm_bash('n06_precompute_TF_STATS', 'precompute_tf_STATS_allsujet', [chan], n_core=15, mem='15G')
-        #sync_folders__push_to_crnldata()
+    execute_function_in_slurm_bash('n06_precompute_TF_STATS', 'precompute_tf_STATS_allsujet', [[chan] for chan in chan_list_eeg_short], n_core=15, mem='15G')
+    #sync_folders__push_to_crnldata()
         
 
 

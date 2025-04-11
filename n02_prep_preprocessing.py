@@ -940,17 +940,18 @@ if __name__== '__main__':
             ########################
 
             # sujet_list = ['01NM_MW', '02NM_OL', '03NM_MC', '04NM_LS', '05NM_JS', '06NM_HC', '07NM_YB', '08NM_CM', '09NM_CV', '10NM_VA', '11NM_LC', '12NM_PS', '13NM_JP', '14NM_LD',
-            #   '15PH_JS',  '16PH_LP',  '17PH_MN',  '18PH_SB',  '19PH_TH',  '20PH_VA',  '21PH_VS',
-            #   '22IL_NM', '23IL_DG', '24IL_DM', '25IL_DJ', '26IL_DC', '27IL_AP', '28IL_SL', '29IL_LL', '30IL_VR', '31IL_LC', '32IL_MA', '33IL_LY', '34IL_BA', '35IL_CM', '36IL_EA', '37IL_LT',
-            #   '38DL_05', '39DL_06', '40DL_07', '41DL_08', '42DL_11', '43DL_12', '44DL_13', '45DL_14', '46DL_15', '47DL_16', '48DL_17', '49DL_18', '50DL_19', '51DL_20', '52DL_21', '53DL_22',
-            #   '54DL_23', '55DL_24', '56DL_25', '57DL_26', '58DL_27', '59DL_28', '60DL_29', '61DL_30', '62DL_31', '63DL_32', '64DL_34', '65DL_39',
+            #   '15PH_JS',  '16PH_LP',  '17PH_SB',  '18PH_TH',  '19PH_VA',  '20PH_VS',
+            #   '21IL_NM', '22IL_DG', '23IL_DM', '24IL_DJ', '25IL_DC', '26IL_AP', '27IL_SL', '28IL_LL', '29IL_VR', '30IL_LC', '31IL_MA', '32IL_LY', '33IL_BA', '34IL_CM', '35IL_EA', '36IL_LT',
+            #   '37DL_05', '38DL_06', '39DL_07', '40DL_08', '41DL_11', '42DL_12', '43DL_13', '44DL_14', '45DL_15', '46DL_16', '47DL_17', '48DL_18', '49DL_19', '50DL_20', '51DL_21', '52DL_22',
+            #   '53DL_23', '54DL_24', '55DL_25', '56DL_26', '57DL_27', '58DL_28', '59DL_29', '60DL_30', '61DL_31', '62DL_32', '63DL_34',
             #   ]
 
-            # sujet = '38DL_05'
+            # sujet = '49DL_19'
 
             # cond_list = ['VS', 'CHARGE']
 
             # cond = 'VS'
+            # cond = 'CHARGE'
 
             if os.path.exists(os.path.join(path_prep, f'{sujet}_{cond}.fif')):
 
