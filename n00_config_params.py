@@ -67,7 +67,7 @@ chan_list_eeg = np.array(['C3', 'C4', 'CP1', 'CP2', 'CP5', 'CP6', 'Cz', 'F3', 'F
 chan_list_eeg_short = np.array(['C3', 'C4', 'CP1', 'CP2', 'Cz', 'F3', 'F4', 'FC1', 'FC2', 'Fz'])
 
 #### NOTES ####
-# In PHYSIOLOGY sujet ['MC05', 'OL04'] have been excluded because they cant load
+# In PHYSIOLOGY sujet ['MC05', 'OL04'] have been excluded because bad load
 # In ITL sujet ['NN', ] have been excluded due to bad signals in ITL
 # In NORMATIVE ['VS06', 'ML11', 'SL18', 'DR05'] removed no signal in CHARGE
 
